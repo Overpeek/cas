@@ -1,5 +1,8 @@
 # a Computer Algebra System project in rust
 
+Still work in progress.
+Just a simple calculator for now.
+
 ### cas-cli example usage
 `cas-cli a/-v/-vv EXPR1 EXPR2 EXPR3 ...`
 'a' accepts anything ex. -
@@ -23,6 +26,9 @@ TODO:
 
 
 https://en.wikipedia.org/wiki/Factorization_of_polynomials
+
 https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+
 https://en.wikipedia.org/wiki/Quadratic_formula
+
 https://en.wikipedia.org/wiki/Cubic_equation
