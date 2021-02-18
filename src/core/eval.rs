@@ -16,8 +16,8 @@ pub fn eval_postfix(
     for symbol in postfix.iter() {
         match symbol {
             Symbol::Operator(oper) => {
-                let a = stack.pop().ok_or_else(|| SymErr::StackEmpty)?;
-                let b = stack.pop().ok_or_else(|| SymErr::StackEmpty)?;
+                let a = stack.pop().ok_or(SymErr::StackEmpty)?;
+                let b = stack.pop().ok_or(SymErr::StackEmpty)?;
 
                 if engine.debugging {
                     println!("Evaluating: {:?} {:?} {:?}", a, b, symbol);

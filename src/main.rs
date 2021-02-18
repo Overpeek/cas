@@ -28,22 +28,26 @@ fn main() -> std::io::Result<()> {
         println!("Input: {}", input);
 
         let expr = engine.parse_infix(input).unwrap();
-        println!("Parsed: {:?}", expr);
+        println!(
+            "Parsed: {} (postfix: {})",
+            expr.print_infix().unwrap(),
+            expr.print_postfix().unwrap()
+        );
 
         let eval = expr.eval().unwrap();
         let evalf = expr.evalf().unwrap();
 
-        if eval.stack.len() == 1 {
-            println!("Evaluated: {:?}", eval.stack.first().unwrap());
-        } else {
-            println!("Evaluated: {:?}", eval);
-        }
+        println!(
+            "Evaluated: {} (postfix: {})",
+            eval.print_infix().unwrap(),
+            eval.print_postfix().unwrap()
+        );
 
-        if evalf.stack.len() == 1 {
-            println!("Force evaluated: {:?}", evalf.stack.first().unwrap());
-        } else {
-            println!("Force evaluated: {:?}", evalf);
-        }
+        println!(
+            "Force evaluated: {}, (postfix: {})",
+            evalf.print_infix().unwrap(),
+            evalf.print_postfix().unwrap()
+        );
     };
 
     for arg in args.iter() {

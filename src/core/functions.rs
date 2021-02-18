@@ -9,7 +9,7 @@ pub fn pop_n(input: &mut Stack, n: isize) -> Result<Vec<f64>, SymErr> {
     let mut output = Vec::new();
 
     for _ in 0..n {
-        match input.pop().ok_or_else(|| return SymErr::StackEmpty)? {
+        match input.pop().ok_or(SymErr::StackEmpty)? {
             Symbol::Number(number) => output.push(number),
             _ => (),
         }

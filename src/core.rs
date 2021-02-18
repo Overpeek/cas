@@ -20,6 +20,7 @@ pub enum SymErr {
     NotANumber,
     InvalidOP,
     ParenthesesMismatch,
+    StackNotLengthOne,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -60,6 +61,18 @@ impl Operator {
             Operator::LPa | Operator::RPa => Err(SymErr::InvalidOP),
             Operator::Pow => Ok(Associativity::Right),
             _ => Ok(Associativity::Left),
+        }
+    }
+
+    pub fn to(&self) -> char {
+        match self {
+            Operator::Add => '+',
+            Operator::Sub => '-',
+            Operator::Div => '/',
+            Operator::Mul => '*',
+            Operator::Pow => '^',
+            Operator::LPa => '(',
+            Operator::RPa => ')',
         }
     }
 
@@ -144,4 +157,32 @@ impl<'a> Expr<'a> {
             engine: self.engine,
         })
     }
+
+    pub fn print_infix(&self) -> Result<String, SymErr> {
+        print_stack(&parse::to_infix(self.engine, &self.stack)?, false)
+    }
+
+    pub fn print_postfix(&self) -> Result<String, SymErr> {
+        print_stack(&self.stack, true)
+    }
+
+    pub fn print(&self) -> Result<String, SymErr> {
+        self.print_infix()
+    }
+}
+
+fn print_stack(stack: &Stack, delimiter: bool) -> Result<String, SymErr> {
+    let mut output = String::new();
+    for (i, symbol) in stack.iter().enumerate() {
+        match symbol {
+            Symbol::Operator(oper) => output.push(oper.to()),
+            Symbol::Number(number) => output.push_str(number.to_string().as_str()),
+            Symbol::String(str) => output.push_str(str.as_str()),
+        }
+        if delimiter && i != stack.len() - 1 {
+            output.push(',')
+        }
+    }
+
+    Ok(output)
 }

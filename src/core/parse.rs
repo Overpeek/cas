@@ -126,3 +126,49 @@ pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, S
 
     Ok(postfix)
 }
+
+enum InfixPostfixMix {
+    Postfix(Symbol),
+    Infix(Vec<Symbol>),
+}
+
+impl InfixPostfixMix {
+    fn operate(self, rhs: InfixPostfixMix, oper: Operator) -> InfixPostfixMix {
+        let mut vec_left = match self {
+            InfixPostfixMix::Postfix(pfx) => vec![pfx],
+            InfixPostfixMix::Infix(ifx) => ifx,
+        };
+        let vec_rhs = match rhs {
+            InfixPostfixMix::Postfix(pfx) => vec![pfx],
+            InfixPostfixMix::Infix(ifx) => ifx,
+        };
+
+        vec_left.insert(0, Symbol::Operator(Operator::LPa));
+        vec_left.push(Symbol::Operator(oper));
+        for symbol in vec_rhs {
+            vec_left.push(symbol);
+        }
+        vec_left.push(Symbol::Operator(Operator::RPa));
+        InfixPostfixMix::Infix(vec_left)
+    }
+}
+
+pub fn to_infix(engine: &Engine, postfix: &Vec<Symbol>) -> Result<Vec<Symbol>, SymErr> {
+    let mut stack: Vec<InfixPostfixMix> = Vec::new();
+    for symbol in postfix.iter() {
+        if let Symbol::Operator(oper) = symbol {
+            let a = stack.pop().ok_or(SymErr::InvalidOP)?;
+            let b = stack.pop().ok_or(SymErr::InvalidOP)?;
+
+            stack.push(a.operate(b, *oper));
+        } else {
+            stack.push(InfixPostfixMix::Postfix(symbol.clone()));
+        }
+    }
+
+    match stack.pop() {
+        Some(InfixPostfixMix::Infix(ifx)) => Ok(ifx),
+        Some(InfixPostfixMix::Postfix(pfx)) => Ok(vec![pfx]),
+        None => Err(SymErr::StackNotLengthOne),
+    }
+}
