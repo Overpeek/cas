@@ -153,7 +153,7 @@ impl InfixPostfixMix {
     }
 }
 
-pub fn to_infix(engine: &Engine, postfix: &Vec<Symbol>) -> Result<Vec<Symbol>, SymErr> {
+pub fn to_infix(postfix: &Vec<Symbol>) -> Result<Vec<Symbol>, SymErr> {
     let mut stack: Vec<InfixPostfixMix> = Vec::new();
     for symbol in postfix.iter() {
         if let Symbol::Operator(oper) = symbol {

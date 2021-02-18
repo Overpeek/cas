@@ -159,7 +159,7 @@ impl<'a> Expr<'a> {
     }
 
     pub fn print_infix(&self) -> Result<String, SymErr> {
-        print_stack(&parse::to_infix(self.engine, &self.stack)?, false)
+        print_stack(&parse::to_infix(&self.stack)?, false)
     }
 
     pub fn print_postfix(&self) -> Result<String, SymErr> {

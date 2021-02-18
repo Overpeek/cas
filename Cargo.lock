@@ -3,3 +3,10 @@
 [[package]]
 name = "cas"
 version = "0.1.0"
+
+[[package]]
+name = "cas-cli"
+version = "0.1.0"
+dependencies = [
+ "cas",
+]
