@@ -1,5 +1,8 @@
 # a Computer Algebra System project in rust
 
+still work in progress
+just a simple calculator for now
+
 ### cas-cli example usage
 `cas-cli [-v,-vv] EXPR1 EXPR2 EXPR3 ...`
 ```
