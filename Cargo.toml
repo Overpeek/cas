@@ -3,7 +3,7 @@ name = "cas"
 version = "0.1.0"
 authors = ["Overpeek <overpeek.fin@gmail.com>"]
 edition = "2018"
-exclude = ["examples/*"]
+exclude = ["examples/*", "tests/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,4 +11,4 @@ exclude = ["examples/*"]
 
 
 [workspace]
-members = ["examples/*"]
+members = ["examples/*", "tests/*"]

@@ -17,20 +17,31 @@ fn split_keep<'a>(str: &'a str) -> Vec<&'a str> {
     result
 }
 
-pub fn parse_infix(infix_string: &str) -> Vec<Symbol> {
-    let infix = split_keep(infix_string);
-    infix
+pub fn parse_infix(infix_string: &str) -> Result<Vec<Symbol>, SymErr> {
+    let infix_split = split_keep(infix_string);
+    Ok(infix_split
         .iter()
-        .map(|&to_parse| {
+        .enumerate()
+        .map(|(i, &to_parse)| {
             if let Ok(number) = to_parse.parse() {
-                Symbol::Number(number)
+                Ok(Symbol::Number(number))
             } else if let Ok(oper) = Operator::from(to_parse.chars().next().unwrap()) {
-                Symbol::Operator(oper)
+                let is_sign = i == 0
+                    || infix_split[i - 1] == "("
+                    || infix_split[i - 1] == "-"
+                    || infix_split[i - 1] == "+";
+                if is_sign && oper.is_signable() {
+                    Ok(Symbol::Operator(oper.to_sign().unwrap()))
+                } else if is_sign && !oper.is_parenthesis() {
+                    Err(SymErr::InvalidSign)
+                } else {
+                    Ok(Symbol::Operator(oper))
+                }
             } else {
-                Symbol::String(String::from(to_parse))
+                Ok(Symbol::String(String::from(to_parse)))
             }
         })
-        .collect::<Vec<_>>()
+        .collect::<Result<Vec<_>, _>>()?)
 }
 
 pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, SymErr> {
@@ -157,10 +168,15 @@ pub fn to_infix(postfix: &Vec<Symbol>) -> Result<Vec<Symbol>, SymErr> {
     let mut stack: Vec<InfixPostfixMix> = Vec::new();
     for symbol in postfix.iter() {
         if let Symbol::Operator(oper) = symbol {
-            let a = stack.pop().ok_or(SymErr::InvalidOP)?;
-            let b = stack.pop().ok_or(SymErr::InvalidOP)?;
+            if oper.is_sign() {
+                let a = stack.pop().ok_or(SymErr::InvalidOP)?;
+                stack.push(InfixPostfixMix::Infix(Vec::new()).operate(a, *oper));
+            } else {
+                let a = stack.pop().ok_or(SymErr::InvalidOP)?;
+                let b = stack.pop().ok_or(SymErr::InvalidOP)?;
 
-            stack.push(a.operate(b, *oper));
+                stack.push(a.operate(b, *oper));
+            }
         } else {
             stack.push(InfixPostfixMix::Postfix(symbol.clone()));
         }

@@ -19,12 +19,16 @@ pub enum SymErr {
     StackEmpty,
     NotANumber,
     InvalidOP,
+    InvalidSign,
     ParenthesesMismatch,
     StackNotLengthOne,
+    Inconvertible,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Operator {
+    Pos, // +
+    Neg, // -
     Add, // +
     Sub, // -
     Mul, // *
@@ -45,13 +49,23 @@ impl Operator {
         *self == Operator::LPa || *self == Operator::RPa
     }
 
+    pub fn is_sign(&self) -> bool {
+        *self == Operator::Pos || *self == Operator::Neg
+    }
+
+    pub fn is_signable(&self) -> bool {
+        self.is_sign() || *self == Operator::Add || *self == Operator::Sub
+    }
+
     pub fn precedence(&self) -> Result<u8, SymErr> {
         match self {
+            Operator::Pos => Ok(4),
+            Operator::Neg => Ok(4),
             Operator::Add => Ok(2),
             Operator::Sub => Ok(2),
             Operator::Div => Ok(3),
             Operator::Mul => Ok(3),
-            Operator::Pow => Ok(4),
+            Operator::Pow => Ok(5),
             _ => Err(SymErr::InvalidOP),
         }
     }
@@ -66,6 +80,8 @@ impl Operator {
 
     pub fn to(&self) -> char {
         match self {
+            Operator::Pos => '+',
+            Operator::Neg => '-',
             Operator::Add => '+',
             Operator::Sub => '-',
             Operator::Div => '/',
@@ -73,6 +89,16 @@ impl Operator {
             Operator::Pow => '^',
             Operator::LPa => '(',
             Operator::RPa => ')',
+        }
+    }
+
+    pub fn to_sign(&self) -> Result<Self, SymErr> {
+        match self {
+            Operator::Pos => Ok(Operator::Pos),
+            Operator::Neg => Ok(Operator::Neg),
+            Operator::Add => Ok(Operator::Pos),
+            Operator::Sub => Ok(Operator::Neg),
+            _ => Err(SymErr::Inconvertible),
         }
     }
 
@@ -118,7 +144,7 @@ impl<'a> Engine<'a> {
     }
 
     pub fn parse_infix(&self, infix_string: &str) -> Result<Expr, SymErr> {
-        let infix = parse::parse_infix(infix_string);
+        let infix = parse::parse_infix(infix_string)?;
         let postfix = parse::to_postfix(self, &infix)?;
         Ok(Expr {
             stack: postfix,

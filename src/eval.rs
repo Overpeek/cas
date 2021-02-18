@@ -15,13 +15,19 @@ pub fn eval_postfix(
 
     for symbol in postfix.iter() {
         match symbol {
+            Symbol::Operator(Operator::Neg) => {
+                let value = stack.pop().ok_or(SymErr::StackEmpty)?;
+                if let Symbol::Number(number) = value {
+                    stack.push(Symbol::Number(-number));
+                } else {
+                    stack.push(value);
+                    stack.push(symbol.clone())
+                }
+            }
+            Symbol::Operator(Operator::Pos) => { /* noop */ }
             Symbol::Operator(oper) => {
                 let a = stack.pop().ok_or(SymErr::StackEmpty)?;
                 let b = stack.pop().ok_or(SymErr::StackEmpty)?;
-
-                if engine.debugging {
-                    println!("Evaluating: {:?} {:?} {:?}", a, b, symbol);
-                }
 
                 match (a, b) {
                     (Symbol::Number(number_a), Symbol::Number(number_b)) => match oper {
@@ -49,6 +55,10 @@ pub fn eval_postfix(
             }
             _ => stack.push(symbol.clone()),
         }
+    }
+
+    if engine.debugging {
+        println!("Result: {:?}", stack);
     }
 
     Ok(stack)

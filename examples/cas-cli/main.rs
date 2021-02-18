@@ -1,12 +1,19 @@
+use std::process::exit;
+
 use cas::Engine;
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let verbosity = match args.first().unwrap_or(&String::from("")).as_str() {
+    let invalid_args = || {
+        println!("Usage: cas-cli -/-v/-vv EXPR1 EXPR2 EXPR3 ...");
+        exit(-1)
+    };
+
+    let verbosity = match args.first().unwrap_or_else(invalid_args).as_str() {
         "-v" => 1,
         "-vv" => 2,
-        _ => 0,
+        _ => 0, // -, -e, or anything
     };
 
     let engine = if verbosity == 2 {
@@ -51,7 +58,7 @@ fn main() -> std::io::Result<()> {
         }
     };
 
-    for arg in args.iter() {
+    for arg in args.iter().skip(1) {
         parse_eval_print(arg);
     }
 
