@@ -25,6 +25,8 @@ TODO:
 
 
 
+https://stackoverflow.com/questions/7540227/strategies-for-simplifying-math-expressions
+
 https://en.wikipedia.org/wiki/Factorization_of_polynomials
 
 https://en.wikipedia.org/wiki/Shunting-yard_algorithm
