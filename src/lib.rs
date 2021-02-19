@@ -4,6 +4,7 @@ mod constants;
 mod eval;
 mod functions;
 mod parse;
+mod simplifier;
 
 type Stack = Vec<Symbol>;
 
@@ -122,6 +123,7 @@ impl Operator {
 
 pub struct Engine<'a> {
     functions: HashMap<&'a str, fn(&mut Stack) -> Result<(), SymErr>>,
+    simplifier: simplifier::Simplifier,
     debugging: bool,
 }
 
