@@ -1,4 +1,6 @@
-use super::{Engine, Operator, SymErr, Symbol};
+use crate::Associativity;
+
+use super::{Engine, Expr, List, Operator, SymErr, Symbol, Tree};
 
 fn split_keep<'a>(str: &'a str) -> Vec<&'a str> {
     let mut result = Vec::new();
@@ -18,27 +20,30 @@ fn split_keep<'a>(str: &'a str) -> Vec<&'a str> {
 }
 
 pub fn parse_infix(infix_string: &str) -> Result<Vec<Symbol>, SymErr> {
-    let infix_split = split_keep(infix_string);
+    let py_fixed_str = infix_string.replace("**", "^");
+    let infix_split = split_keep(py_fixed_str.as_str());
     Ok(infix_split
         .iter()
         .enumerate()
-        .map(|(i, &to_parse)| {
+        .filter_map(|(i, &to_parse)| {
             if let Ok(number) = to_parse.parse() {
-                Ok(Symbol::Number(number))
+                Some(Ok(Symbol::Number(number)))
             } else if let Ok(oper) = Operator::from(to_parse.chars().next().unwrap()) {
                 let is_sign = i == 0
                     || infix_split[i - 1] == "("
                     || infix_split[i - 1] == "-"
                     || infix_split[i - 1] == "+";
-                if is_sign && oper.is_signable() {
-                    Ok(Symbol::Operator(oper.to_sign().unwrap()))
+                if is_sign && oper == Operator::Add {
+                    None
+                } else if is_sign && oper == Operator::Sub {
+                    Some(Ok(Symbol::Negate(())))
                 } else if is_sign && !oper.is_parenthesis() {
-                    Err(SymErr::InvalidSign)
+                    Some(Err(SymErr::InvalidSign))
                 } else {
-                    Ok(Symbol::Operator(oper))
+                    Some(Ok(Symbol::Operator(oper)))
                 }
             } else {
-                Ok(Symbol::String(String::from(to_parse)))
+                Some(Ok(Symbol::String(String::from(to_parse))))
             }
         })
         .collect::<Result<Vec<_>, _>>()?)
@@ -59,6 +64,7 @@ pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, S
                 postfix.push(symbol.clone());
                 last_was_number = true;
             }
+            Symbol::Negate(_) => operator_stack.push(symbol.clone()),
             Symbol::Operator(oper) => {
                 if *oper == Operator::LPa {
                     if last_was_number {
@@ -82,6 +88,7 @@ pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, S
                                 }
                                 Symbol::Operator(top_operator)
                             }
+                            Some(Symbol::Negate(_)) => Symbol::Negate(()),
                             Some(sym) => sym.clone(),
                             None => return Err(SymErr::ParenthesesMismatch),
                         };
@@ -104,6 +111,7 @@ pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, S
                         let top_symbol = operator_stack.pop();
                         let top_operator = match top_symbol {
                             Some(Symbol::Operator(oper)) => oper,
+                            Some(Symbol::Negate(_)) => Operator::Custom(4, Associativity::Left),
                             _ => break,
                         };
 
@@ -115,7 +123,10 @@ pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, S
                         }
 
                         last_oper = top_operator;
-                        postfix.push(Symbol::Operator(top_operator));
+                        match top_operator {
+                            Operator::Custom(_, _) => postfix.push(Symbol::Negate(())),
+                            _ => postfix.push(Symbol::Operator(top_operator)),
+                        }
                     }
                     operator_stack.push(symbol.clone())
                 }
@@ -138,53 +149,38 @@ pub fn to_postfix(engine: &Engine, infix: &Vec<Symbol>) -> Result<Vec<Symbol>, S
     Ok(postfix)
 }
 
-enum InfixPostfixMix {
-    Postfix(Symbol),
-    Infix(Vec<Symbol>),
-}
+pub fn postfix_to_tree(postfix: &Vec<Symbol>) -> Result<Expr, SymErr> {
+    let mut mixed_stack = Vec::new();
 
-impl InfixPostfixMix {
-    fn operate(self, rhs: InfixPostfixMix, oper: Operator) -> InfixPostfixMix {
-        let mut vec_left = match self {
-            InfixPostfixMix::Postfix(pfx) => vec![pfx],
-            InfixPostfixMix::Infix(ifx) => ifx,
-        };
-        let vec_rhs = match rhs {
-            InfixPostfixMix::Postfix(pfx) => vec![pfx],
-            InfixPostfixMix::Infix(ifx) => ifx,
-        };
-
-        vec_left.insert(0, Symbol::Operator(Operator::LPa));
-        vec_left.push(Symbol::Operator(oper));
-        for symbol in vec_rhs {
-            vec_left.push(symbol);
-        }
-        vec_left.push(Symbol::Operator(Operator::RPa));
-        InfixPostfixMix::Infix(vec_left)
-    }
-}
-
-pub fn to_infix(postfix: &Vec<Symbol>) -> Result<Vec<Symbol>, SymErr> {
-    let mut stack: Vec<InfixPostfixMix> = Vec::new();
     for symbol in postfix.iter() {
-        if let Symbol::Operator(oper) = symbol {
-            if oper.is_sign() {
-                let a = stack.pop().ok_or(SymErr::InvalidOP)?;
-                stack.push(InfixPostfixMix::Infix(Vec::new()).operate(a, *oper));
-            } else {
-                let a = stack.pop().ok_or(SymErr::InvalidOP)?;
-                let b = stack.pop().ok_or(SymErr::InvalidOP)?;
+        match symbol {
+            Symbol::Operator(op) => {
+                let a = mixed_stack.pop().ok_or(SymErr::StackEmpty)?;
+                let b = mixed_stack.pop().ok_or(SymErr::StackEmpty)?;
 
-                stack.push(a.operate(b, *oper));
+                mixed_stack.push(Expr::Operator(Tree {
+                    value: op.clone(),
+                    next: Some((Box::new(b), Box::new(a))),
+                }));
             }
-        } else {
-            stack.push(InfixPostfixMix::Postfix(symbol.clone()));
+            Symbol::Negate(_) => {
+                let a = mixed_stack.pop().ok_or(SymErr::StackEmpty)?;
+
+                mixed_stack.push(Expr::Negate(List {
+                    value: (),
+                    next: Some(Box::new(a)),
+                }));
+            }
+            Symbol::Number(n) => {
+                mixed_stack.push(Expr::Number(n.clone()));
+            }
+            Symbol::String(s) => {
+                mixed_stack.push(Expr::String(s.clone()));
+            }
         }
     }
 
-    match stack.pop() {
-        Some(InfixPostfixMix::Infix(ifx)) => Ok(ifx),
-        Some(InfixPostfixMix::Postfix(pfx)) => Ok(vec![pfx]),
-        None => Err(SymErr::StackNotLengthOne),
-    }
+    assert!(mixed_stack.len() == 1, "Postfix had leftover symbols");
+
+    Ok(mixed_stack.pop().unwrap())
 }
