@@ -14,7 +14,25 @@ fn simple_eval() {
     ];
 
     for (i, e) in l.iter().enumerate() {
-        let answer = engine.parse(e.0).unwrap().eval();
+        let answer = Expr::parse(&engine, e.0).unwrap().eval();
+
+        assert_eq!(answer, e.1, "e={}, i={}", e.0, i);
+    }
+}
+
+#[test]
+fn eval_after_simplify() {
+    let engine = Engine::new().with_functions().with_debugging();
+
+    let l: Vec<(&str, Expr)> = vec![
+        ("-3(-2^2*2)/2-0", expr!(12.0)),
+        ("43*(4(2/5))", expr!(68.8)),
+        ("5*4+3", expr!(23.0)),
+        ("-2^6", expr!(-64.0)),
+    ];
+
+    for (i, e) in l.iter().enumerate() {
+        let answer = Expr::parse(&engine, e.0).unwrap().simplify(&engine).eval();
 
         assert_eq!(answer, e.1, "e={}, i={}", e.0, i);
     }
@@ -52,7 +70,7 @@ fn sign_fuzz() {
         }
         buf.push('1');
 
-        let answer = engine.parse(buf.as_str()).unwrap().eval();
+        let answer = Expr::parse(&engine, buf.as_str()).unwrap().eval();
 
         assert_eq!(
             answer,

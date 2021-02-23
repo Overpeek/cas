@@ -15,18 +15,20 @@ type Negate = ();
 #[derive(Debug, PartialEq, Clone)]
 pub enum Symbol {
     Number(f64),
-    String(String),
+    Variable(String),
+    Function(String),
     Operator(Operator),
     Negate(Negate),
 }
 
 impl Display for Symbol {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Symbol::Number(n) => write!(f, "{}", n),
-            Symbol::String(s) => write!(f, "{}", s),
-            Symbol::Operator(o) => write!(f, "{}", o.to()),
-            Symbol::Negate(_) => write!(f, "{}", '-'),
+            Symbol::Number(n) => write!(fmt, "{}", n),
+            Symbol::Variable(s) => write!(fmt, "{}", s),
+            Symbol::Function(s) => write!(fmt, "{}()", s),
+            Symbol::Operator(o) => write!(fmt, "{}", o.to()),
+            Symbol::Negate(_) => write!(fmt, "{}", '-'),
         }
     }
 }
@@ -34,45 +36,68 @@ impl Display for Symbol {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Tree<T, U> {
     value: T,
-    next: Option<(Box<U>, Box<U>)>,
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct List<T, U> {
-    value: T,
-    next: Option<Box<U>>,
+    next: Option<Vec<Box<U>>>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expr {
     Number(f64),
-    String(String),
+    Variable(String),
+    Function(Tree<String, Expr>),
     Operator(Tree<Operator, Expr>),
-    Negate(List<Negate, Expr>),
+    Negate(Tree<Negate, Expr>),
+
+    Identifier(u32),
 }
 
 impl Expr {
+    pub fn parse(engine: &Engine, infix_string: &str) -> Result<Expr, SymErr> {
+        Ok(parse::postfix_to_tree(
+            &engine,
+            &parse::to_postfix(engine, &parse::parse_infix(engine, infix_string)?)?,
+        )?)
+    }
+
+    pub fn simplify(&self, engine: &Engine) -> Expr {
+        engine.simplifier.simplify(engine, &self)
+    }
+
     pub fn eval(&self) -> Self {
         eval_tree(&self)
     }
 }
 
 impl Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            Expr::Number(n) => write!(f, "{}", n),
-            Expr::String(s) => write!(f, "{}", s),
-            Expr::Operator(o) => {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(fmt, "{}", parse::tree_to_infix(&self))
+        /* match &self {
+            Expr::Number(n) => write!(fmt, "{}", n),
+            Expr::Variable(s) => write!(fmt, "{}", s),
+            Expr::Function(f) => {
+                let mut l = String::new();
+                f.next.as_ref().unwrap().iter().for_each(|e| {
+                    l = format!("{}, {}", l, e);
+                });
+
                 write!(
-                    f,
-                    "{} -> [ {}, {} ]",
-                    o.value.to(),
-                    o.next.as_ref().unwrap().0,
-                    o.next.as_ref().unwrap().1
+                    fmt,
+                    "{}({})",
+                    f.value,
+                    if l.is_empty() { l.as_str() } else { &l[2..] },
                 )
             }
-            Expr::Negate(n) => write!(f, "-({})", n.next.as_ref().unwrap()),
-        }
+            Expr::Operator(o) => {
+                write!(
+                    fmt,
+                    "{} -> [ {}, {} ]",
+                    o.value.to(),
+                    o.next.as_ref().unwrap()[0],
+                    o.next.as_ref().unwrap()[1]
+                )
+            }
+            Expr::Negate(n) => write!(fmt, "-({})", n.next.as_ref().unwrap()[0]),
+            Expr::Identifier(i) => write!(fmt, "\\{}\\", i),
+        } */
     }
 }
 
@@ -84,7 +109,13 @@ impl From<f64> for Expr {
 
 impl From<String> for Expr {
     fn from(value: String) -> Self {
-        Expr::String(value)
+        Expr::Variable(value)
+    }
+}
+
+impl From<u32> for Expr {
+    fn from(value: u32) -> Self {
+        Expr::Identifier(value)
     }
 }
 
@@ -103,7 +134,7 @@ impl ops::Add for Expr {
     fn add(self, rhs: Self) -> Expr {
         Expr::Operator(Tree {
             value: Operator::Add,
-            next: Some((Box::new(self), Box::new(rhs))),
+            next: Some(vec![Box::new(self), Box::new(rhs)]),
         })
     }
 }
@@ -114,7 +145,7 @@ impl ops::Sub for Expr {
     fn sub(self, rhs: Self) -> Expr {
         Expr::Operator(Tree {
             value: Operator::Sub,
-            next: Some((Box::new(self), Box::new(rhs))),
+            next: Some(vec![Box::new(self), Box::new(rhs)]),
         })
     }
 }
@@ -123,9 +154,9 @@ impl ops::Neg for Expr {
     type Output = Expr;
 
     fn neg(self) -> Expr {
-        Expr::Negate(List {
+        Expr::Negate(Tree {
             value: (),
-            next: Some(Box::new(self)),
+            next: Some(vec![Box::new(self)]),
         })
     }
 }
@@ -136,7 +167,7 @@ impl ops::Mul for Expr {
     fn mul(self, rhs: Self) -> Expr {
         Expr::Operator(Tree {
             value: Operator::Mul,
-            next: Some((Box::new(self), Box::new(rhs))),
+            next: Some(vec![Box::new(self), Box::new(rhs)]),
         })
     }
 }
@@ -147,8 +178,28 @@ impl ops::Div for Expr {
     fn div(self, rhs: Self) -> Expr {
         Expr::Operator(Tree {
             value: Operator::Div,
-            next: Some((Box::new(self), Box::new(rhs))),
+            next: Some(vec![Box::new(self), Box::new(rhs)]),
         })
+    }
+}
+
+impl Expr {
+    fn pow(self, exp: Self) -> Expr {
+        Expr::Operator(Tree {
+            value: Operator::Pow,
+            next: Some(vec![Box::new(self), Box::new(exp)]),
+        })
+    }
+
+    fn ty(&self) -> i64 {
+        match self {
+            Expr::Function(_) => 0,
+            Expr::Identifier(_) => 1,
+            Expr::Negate(_) => 2,
+            Expr::Number(_) => 3,
+            Expr::Operator(_) => 4,
+            Expr::Variable(_) => 5,
+        }
     }
 }
 
@@ -158,6 +209,8 @@ pub enum SymErr {
     NotANumber,
     InvalidOP,
     InvalidSign,
+    UnknownFunction,
+    InvalidFunctionArgCount,
     ParenthesesMismatch,
     StackNotLengthOne,
     Inconvertible,
@@ -239,7 +292,7 @@ impl Operator {
 }
 
 pub struct Engine<'a> {
-    functions: HashMap<&'a str, fn(&mut Stack) -> Result<(), SymErr>>,
+    functions: HashMap<&'a str, (u8, fn(&mut Stack) -> Result<(), SymErr>)>,
     simplifier: simplifier::Simplifier,
     debugging: bool,
 }
@@ -261,13 +314,6 @@ impl<'a> Engine<'a> {
     pub fn with_functions(mut self) -> Self {
         functions::all(&mut self.functions);
         self
-    }
-
-    pub fn parse(&self, infix_string: &str) -> Result<Expr, SymErr> {
-        Ok(parse::postfix_to_tree(&parse::to_postfix(
-            self,
-            &parse::parse_infix(infix_string)?,
-        )?)?)
     }
 }
 
