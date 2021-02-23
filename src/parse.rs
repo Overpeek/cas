@@ -1,5 +1,3 @@
-use std::u32;
-
 use crate::Associativity;
 
 use super::{Engine, Expr, Operator, SymErr, Symbol, Tree};
@@ -220,9 +218,27 @@ pub fn postfix_to_tree(engine: &Engine, postfix: &Vec<Symbol>) -> Result<Expr, S
     Ok(mixed_stack.pop().unwrap())
 }
 
-pub fn tree_to_infix_recurse(expr: &Expr) -> (String, u8) {
+fn tree_to_infix_recurse(expr: &Expr) -> (String, u8) {
     match &expr {
-        Expr::Function(f) => (format!("{}(...)", f.value), u8::MAX),
+        Expr::Function(f) => (
+            format!(
+                "{}({})",
+                f.value,
+                (|| {
+                    let mut l = String::new();
+                    f.next.as_ref().unwrap().iter().for_each(|e| {
+                        l = format!("{}, {}", l, tree_to_infix(e));
+                    });
+
+                    if l.is_empty() {
+                        l
+                    } else {
+                        String::from(&l[2..])
+                    }
+                })()
+            ),
+            u8::MAX,
+        ),
         Expr::Operator(o) => {
             let a = tree_to_infix_recurse(&o.next.as_ref().unwrap()[0]);
             let b = tree_to_infix_recurse(&o.next.as_ref().unwrap()[1]);
@@ -251,4 +267,78 @@ pub fn tree_to_infix_recurse(expr: &Expr) -> (String, u8) {
 
 pub fn tree_to_infix(expr: &Expr) -> String {
     tree_to_infix_recurse(expr).0
+}
+
+fn tree_to_latex_recurse(expr: &Expr) -> (String, u8) {
+    match &expr {
+        Expr::Function(f) => (
+            format!(
+                "\\{}\\left({}\\right)",
+                f.value,
+                (|| {
+                    let mut l = String::new();
+                    f.next.as_ref().unwrap().iter().for_each(|e| {
+                        l = format!("{}, {}", l, tree_to_latex_recurse(e).0);
+                    });
+
+                    if l.is_empty() {
+                        l
+                    } else {
+                        String::from(&l[2..])
+                    }
+                })()
+            ),
+            u8::MAX,
+        ),
+        Expr::Operator(o) => {
+            let a = tree_to_latex_recurse(&o.next.as_ref().unwrap()[0]);
+            let b = tree_to_latex_recurse(&o.next.as_ref().unwrap()[1]);
+            let c = o.value.precedence().unwrap();
+
+            match o.value {
+                Operator::Div => (format!("\\frac{{{}}}{{{}}}", a.0, b.0), c),
+                Operator::Mul => {
+                    if c <= a.1 && c <= b.1 {
+                        (format!("{}\\cdot{}", a.0, b.0), c)
+                    } else if a.1 >= b.1 {
+                        (format!("{}\\cdot\\left({}\\right)", a.0, b.0), c)
+                    } else {
+                        (format!("\\left({}\\right)\\cdot{}", a.0, b.0), c)
+                    }
+                }
+                Operator::Pow => {
+                    if c <= a.1 && c <= b.1 {
+                        (format!("{}^{}", a.0, b.0), c)
+                    } else if a.1 >= b.1 {
+                        (format!("{}^{{{}}}", a.0, b.0), c)
+                    } else {
+                        (format!("{{{}}}^{}", a.0, b.0), c)
+                    }
+                }
+                _ => {
+                    if c <= a.1 && c <= b.1 {
+                        (format!("{}{}{}", a.0, o.value.to(), b.0), c)
+                    } else if a.1 >= b.1 {
+                        (format!("{}{}\\left({}\\right)", a.0, o.value.to(), b.0), c)
+                    } else {
+                        (format!("\\left({}\\right){}{}", a.0, o.value.to(), b.0), c)
+                    }
+                }
+            }
+        }
+        Expr::Negate(n) => (
+            format!(
+                "-({})",
+                tree_to_latex_recurse(&n.next.as_ref().unwrap()[0]).0
+            ),
+            4,
+        ),
+        Expr::Variable(v) => (format!("{}", v), u8::MAX),
+        Expr::Number(n) => (format!("{}", n), u8::MAX),
+        Expr::Identifier(i) => (format!("i:{}", i), u8::MAX),
+    }
+}
+
+pub fn tree_to_latex(expr: &Expr) -> String {
+    tree_to_latex_recurse(expr).0
 }

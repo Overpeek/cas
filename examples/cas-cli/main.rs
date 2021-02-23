@@ -1,4 +1,9 @@
 use cas::{Engine, Expr};
+use crossterm::{
+    execute,
+    style::{Color, Print, ResetColor, SetForegroundColor},
+};
+use std::io::stdout;
 
 const DEBUG: bool = true;
 
@@ -9,21 +14,45 @@ fn main() -> std::io::Result<()> {
     } else {
         Engine::new().with_functions()
     };
-
-    let parse_eval_print = |input: &str| {
-        if input.len() == 0 {
-            return;
-        }
-
-        let expr = Expr::parse(&engine, input).unwrap();
-
-        println!("Parsed: {}", expr);
-        println!("Evaluated: {}", expr.eval());
-        println!("Simplified: {}", expr.simplify(&engine));
-    };
+    let stdout = stdout();
 
     for arg in args.iter() {
-        parse_eval_print(arg);
+        if arg.len() == 0 {
+            continue;
+        }
+
+        let expr = Expr::parse(&engine, arg).unwrap();
+        let simple = expr.simplify(&engine);
+        let eval = simple.eval();
+
+        execute!(
+            &stdout,
+            Print("Parsed: "),
+            SetForegroundColor(Color::Green),
+            Print(format!("{}", expr)),
+            ResetColor,
+            Print(" latex: "),
+            SetForegroundColor(Color::Cyan),
+            Print(format!("{}\n", expr.print_latex())),
+            ResetColor,
+            Print("Simplified: "),
+            SetForegroundColor(Color::Green),
+            Print(format!("{}", simple)),
+            ResetColor,
+            Print(" latex: "),
+            SetForegroundColor(Color::Cyan),
+            Print(format!("{}\n", simple.print_latex())),
+            ResetColor,
+            Print("Evaluated: "),
+            SetForegroundColor(Color::Green),
+            Print(format!("{}", eval)),
+            ResetColor,
+            Print(" latex: "),
+            SetForegroundColor(Color::Cyan),
+            Print(format!("{}\n", eval.print_latex())),
+            ResetColor
+        )
+        .unwrap();
     }
 
     Ok(())

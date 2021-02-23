@@ -65,11 +65,19 @@ impl Expr {
     pub fn eval(&self) -> Self {
         eval_tree(&self)
     }
+
+    pub fn print(&self) -> String {
+        parse::tree_to_infix(&self)
+    }
+
+    pub fn print_latex(&self) -> String {
+        parse::tree_to_latex(&self)
+    }
 }
 
 impl Display for Expr {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "{}", parse::tree_to_infix(&self))
+        write!(fmt, "{}", self.print())
         /* match &self {
             Expr::Number(n) => write!(fmt, "{}", n),
             Expr::Variable(s) => write!(fmt, "{}", s),

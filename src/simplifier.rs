@@ -73,54 +73,6 @@ impl Simplifier {
 		}
 	}
 
-    fn simplify_i(&self, engine: &Engine, expr: &Expr) -> (Expr, bool) {
-		let mut simplified = expr.clone();
-		let mut matched = false;
-
-		// apply all rules
-		for (matcher, replace) in self.rules.iter() {
-			// simplify root
-			let mut ids = HashMap::new();
-			if Simplifier::compare(matcher, &simplified, &mut ids) {
-				simplified = replace.clone();
-				Simplifier::replace(&mut simplified, &mut ids);
-				matched = true;
-				
-				if engine.debugging {
-					println!("Match found: {} for {} and replaced with {}", matcher, expr, simplified);
-				}
-			}
-
-			// simplify subexprs
-			match &mut simplified {
-				Expr::Function(f) => {
-					f.next.as_mut().unwrap().iter_mut().for_each(|e| {
-						let res = self.simplify_i(engine, e.as_ref());
-						*e.as_mut() = res.0;
-						matched = matched || res.1;
-					});
-				}
-				Expr::Operator(o) => {
-					o.next.as_mut().unwrap().iter_mut().for_each(|e| {
-						let res = self.simplify_i(engine, e.as_ref());
-						*e.as_mut() = res.0;
-						matched = matched || res.1;
-					});
-				}
-				Expr::Negate(n) => {
-					n.next.as_mut().unwrap().iter_mut().for_each(|e| {
-						let res = self.simplify_i(engine, e.as_ref());
-						*e.as_mut() = res.0;
-						matched = matched || res.1;
-					});
-				}
-				_ => (),
-			}
-		}
-
-        (simplified, matched)
-    }
-
     pub fn simplify(&self, engine: &Engine, expr: &Expr) -> Expr {
 		let mut simplified = expr.clone();
 
@@ -136,20 +88,6 @@ impl Simplifier {
 					println!("Match found: {} for {} and replaced with {}", matcher, expr, simplified);
 				}
 			}
-
-			/* // simplify subexprs
-			match &mut simplified {
-				Expr::Function(f) => {
-					f.next.as_mut().unwrap().iter_mut().for_each(|e| *e.as_mut() = self.simplify(engine, e.as_ref()));
-				}
-				Expr::Operator(o) => {
-					o.next.as_mut().unwrap().iter_mut().for_each(|e| *e.as_mut() = self.simplify(engine, e.as_ref()));
-				}
-				Expr::Negate(n) => {
-					n.next.as_mut().unwrap().iter_mut().for_each(|e| *e.as_mut() = self.simplify(engine, e.as_ref()));
-				}
-				_ => (),
-			} */
 		}
 
         simplified
@@ -168,6 +106,11 @@ impl Simplifier {
         rules.push((
 			expr!(0) + expr!(0.0),
 			expr!(0)
+		));
+		// x - x = 0
+        rules.push((
+			expr!(0) - expr!(0),
+			expr!(0.0)
 		));
         // x * 0 = 0
         rules.push((
@@ -199,6 +142,26 @@ impl Simplifier {
 			expr!(0) + expr!(0),
 			expr!(2.0) * expr!(0)
 		));
+        // x * x^y = x^(y+1)
+        rules.push((
+			expr!(0) * expr!(0).pow(expr!(1)),
+			expr!(0).pow(expr!(1) + expr!(1.0))
+		));
+        // x^y * x = x^(y+1)
+        rules.push((
+			expr!(0).pow(expr!(1)) * expr!(0),
+			expr!(0).pow(expr!(1) + expr!(1.0))
+		));
+        // (x^y)^z = x^(y*z)
+        rules.push((
+			expr!(0).pow(expr!(1)).pow(expr!(2)),
+			expr!(0).pow(expr!(1) * expr!(2))
+		));
+        // x + x = 2x
+        rules.push((
+			expr!(0) + expr!(0),
+			expr!(2.0) * expr!(0)
+		));
         // x / x = 1
         rules.push((
 			expr!(0) / expr!(0),
@@ -209,11 +172,26 @@ impl Simplifier {
 			expr!(0) / expr!(1), 
 			expr!(0) * expr!(1).pow(expr!(-1.0))
 		));
-        // x + x * y = x * (1 + y)
+        // x + x * y = x * (y + 1)
         rules.push((
             expr!(0) + expr!(0) * expr!(1),
-            expr!(0) * (expr!(1.0) + expr!(1)),
+            expr!(0) * (expr!(1) + expr!(1.0)),
         ));
+        // x * y + x = x * (y + 1)
+        rules.push((
+            expr!(0) * expr!(1) + expr!(0),
+            expr!(0) * (expr!(1) + expr!(1.0)),
+        ));
+		// x - x * y = x * (y - 1)
+        rules.push((
+            expr!(0) - expr!(0) * expr!(1),
+            expr!(0) * (expr!(1) - expr!(1.0)),
+		));
+		// x * y - x = x * (y - 1)
+        rules.push((
+            expr!(0) * expr!(1) - expr!(0),
+            expr!(0) * (expr!(1) - expr!(1.0)),
+		));
         // x^y * x^z = x^(y+z)
         rules.push((
             expr!(0).pow(expr!(1)) * expr!(0).pow(expr!(2)),
