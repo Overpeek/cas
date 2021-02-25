@@ -10,7 +10,6 @@ pub mod parse;
 pub mod simplifier;
 
 type Stack = Vec<Symbol>;
-type Negate = ();
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Symbol {
@@ -18,7 +17,6 @@ pub enum Symbol {
     Variable(String),
     Function(String),
     Operator(Operator),
-    Negate(Negate),
 }
 
 impl Display for Symbol {
@@ -27,8 +25,8 @@ impl Display for Symbol {
             Symbol::Number(n) => write!(fmt, "{}", n),
             Symbol::Variable(s) => write!(fmt, "{}", s),
             Symbol::Function(s) => write!(fmt, "{}()", s),
+            Symbol::Operator(Negate) => write!(fmt, "{}", '-'),
             Symbol::Operator(o) => write!(fmt, "{}", o.to()),
-            Symbol::Negate(_) => write!(fmt, "{}", '-'),
         }
     }
 }
@@ -45,7 +43,6 @@ pub enum Expr {
     Variable(String),
     Function(Tree<String, Expr>),
     Operator(Tree<Operator, Expr>),
-    Negate(Tree<Negate, Expr>),
 
     Identifier(u32),
 }
@@ -90,15 +87,16 @@ impl Expr {
                     if l.is_empty() { l.as_str() } else { &l[2..] },
                 )
             }
-            Expr::Operator(o) => {
-                format!(
+            Expr::Operator(o) => match o.value {
+                Operator::Pos => format!("-({})", o.next.as_ref().unwrap()[0]),
+                Operator::Neg => format!("-({})", o.next.as_ref().unwrap()[0]),
+                _ => format!(
                     "{} -> [ {}, {} ]",
                     o.value.to(),
                     o.next.as_ref().unwrap()[0].print_debug(),
                     o.next.as_ref().unwrap()[1].print_debug()
-                )
-            }
-            Expr::Negate(n) => format!("-({})", n.next.as_ref().unwrap()[0]),
+                ),
+            },
             Expr::Identifier(i) => format!("\\{}\\", i),
         }
     }
@@ -169,8 +167,8 @@ impl ops::Neg for Expr {
     type Output = Expr;
 
     fn neg(self) -> Expr {
-        Expr::Negate(Tree {
-            value: (),
+        Expr::Operator(Tree {
+            value: Operator::Neg,
             next: Some(vec![Box::new(self)]),
         })
     }
@@ -220,10 +218,9 @@ impl Expr {
         match self {
             Expr::Function(_) => 0,
             Expr::Identifier(_) => 1,
-            Expr::Negate(_) => 2,
-            Expr::Number(_) => 3,
-            Expr::Operator(_) => 4,
-            Expr::Variable(_) => 5,
+            Expr::Number(_) => 2,
+            Expr::Operator(_) => 3,
+            Expr::Variable(_) => 4,
         }
     }
 }
@@ -243,6 +240,8 @@ pub enum SymErr {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Operator {
+    Pos, // +
+    Neg, // -
     Add, // +
     Sub, // -
     Mul, // *
@@ -250,7 +249,6 @@ pub enum Operator {
     Pow, // ^ (TODO: or **)
     LPa, // (
     RPa, // )
-    Custom(u8, Associativity),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -266,12 +264,13 @@ impl Operator {
 
     pub fn precedence(&self) -> Result<u8, SymErr> {
         match self {
+            Operator::Pos => Ok(4),
+            Operator::Neg => Ok(4),
             Operator::Add => Ok(2),
             Operator::Sub => Ok(2),
             Operator::Div => Ok(3),
             Operator::Mul => Ok(3),
             Operator::Pow => Ok(5),
-            Operator::Custom(p, _) => Ok(p.clone()),
             _ => Err(SymErr::InvalidOP),
         }
     }
@@ -280,13 +279,14 @@ impl Operator {
         match self {
             Operator::LPa | Operator::RPa => Err(SymErr::InvalidOP),
             Operator::Pow => Ok(Associativity::Right),
-            Operator::Custom(_, a) => Ok(a.clone()),
             _ => Ok(Associativity::Left),
         }
     }
 
     pub fn to(&self) -> char {
         match self {
+            Operator::Pos => 'p',
+            Operator::Neg => 'n',
             Operator::Add => '+',
             Operator::Sub => '-',
             Operator::Div => '/',
@@ -294,7 +294,6 @@ impl Operator {
             Operator::Pow => '^',
             Operator::LPa => '(',
             Operator::RPa => ')',
-            Operator::Custom(_, _) => 'c',
         }
     }
 

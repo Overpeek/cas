@@ -66,9 +66,6 @@ impl Simplifier {
 			Expr::Operator(o) => {
 				o.next.as_mut().unwrap().iter_mut().for_each(|e| Simplifier::replace(e.as_mut(), ids));
 			}
-			Expr::Negate(n) => {
-				n.next.as_mut().unwrap().iter_mut().for_each(|e| Simplifier::replace(e.as_mut(), ids));
-			}
 			_ => (),
 		}
 	}

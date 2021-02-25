@@ -52,11 +52,11 @@ fn sign_fuzz() {
         nanos
     };
 
-    const LEN: usize = 100;
+    const LEN: usize = 25;
     let mut buf = String::new();
     buf.reserve(LEN);
 
-    for _ in 0..100 {
+    for _ in 0..200 {
         let mut count = 0;
         buf.clear();
         buf.push('1');
