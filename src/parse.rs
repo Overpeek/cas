@@ -215,9 +215,13 @@ pub fn postfix_to_tree(engine: &Engine, postfix: &Vec<Symbol>) -> Result<Expr, S
         }
     }
 
-    assert!(mixed_stack.len() == 1, "Postfix had leftover symbols");
-
-    Ok(mixed_stack.pop().unwrap())
+    if mixed_stack.len() > 1 {
+        Err(SymErr::LeftoverSymbols)
+    } else if mixed_stack.len() == 0 {
+        Err(SymErr::StackEmpty)
+    } else {
+        Ok(mixed_stack.pop().unwrap())
+    }
 }
 
 enum Ordering {
@@ -290,7 +294,7 @@ fn tree_to_infix_recurse(expr: &Expr) -> (String, u8) {
         },
         Expr::Variable(v) => (format!("{}", v), u8::MAX),
         Expr::Number(n) => (format!("{}", n), u8::MAX),
-        Expr::Identifier(i) => (format!("i:{}", i), u8::MAX),
+        Expr::Identifier(i) => (format!("i:{}", i.id), u8::MAX),
     }
 }
 
@@ -371,7 +375,7 @@ fn tree_to_latex_recurse(expr: &Expr) -> (String, u8) {
         },
         Expr::Variable(v) => (format!("{}", v), u8::MAX),
         Expr::Number(n) => (format!("{}", n), u8::MAX),
-        Expr::Identifier(i) => (format!("i:{}", i), u8::MAX),
+        Expr::Identifier(i) => (format!("i:{}", i.id), u8::MAX),
     }
 }
 

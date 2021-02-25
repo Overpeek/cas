@@ -14,10 +14,10 @@ pub mod functions;
 pub mod parse;
 pub mod simplifier;
 
-type Stack = Vec<Symbol>;
+type FnMap<'a> = HashMap<&'a str, (u8, fn(&Engine, &Vec<Box<Expr>>) -> Result<Expr, SymErr>)>;
 
 pub struct Engine<'a> {
-    functions: HashMap<&'a str, (u8, fn(&mut Stack) -> Result<(), SymErr>)>,
+    functions: FnMap<'a>,
     simplifier: simplifier::Simplifier,
     debugging: bool,
 }
@@ -33,6 +33,8 @@ pub enum SymErr {
     ParenthesesMismatch,
     StackNotLengthOne,
     Inconvertible,
+    Undefined,
+    LeftoverSymbols,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -74,6 +76,17 @@ pub struct Tree<T, U> {
     next: Option<Vec<Box<U>>>,
 }
 
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+pub struct ID {
+    id: u32,
+}
+
+impl ID {
+    pub fn new(id: u32) -> Self {
+        Self { id }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expr {
     Number(Number),
@@ -81,7 +94,7 @@ pub enum Expr {
     Function(Tree<String, Expr>),
     Operator(Tree<Operator, Expr>),
 
-    Identifier(u32),
+    Identifier(ID),
 }
 
 impl Display for Number {
@@ -119,11 +132,23 @@ impl Expr {
         )?)
     }
 
+    pub fn func(function: &str, arguments: Vec<Expr>) -> Result<Expr, SymErr> {
+        Ok(Expr::Function(Tree {
+            value: String::from(function),
+            next: Some(
+                arguments
+                    .into_iter()
+                    .map(|arg| Box::new(arg))
+                    .collect::<Vec<_>>(),
+            ),
+        }))
+    }
+
     pub fn simplify(&self, engine: &Engine) -> Expr {
         engine.simplifier.simplify(engine, &self)
     }
 
-    pub fn eval(&self, engine: &Engine) -> Self {
+    pub fn eval(&self, engine: &Engine) -> Result<Self, SymErr> {
         eval_tree(engine, &self)
     }
 
@@ -161,7 +186,7 @@ impl Expr {
                     o.next.as_ref().unwrap()[1].print_debug()
                 ),
             },
-            Expr::Identifier(i) => format!("\\{}\\", i),
+            Expr::Identifier(i) => format!("\\{}\\", i.id),
         }
     }
 }
@@ -202,8 +227,8 @@ impl From<&str> for Expr {
     }
 }
 
-impl From<u32> for Expr {
-    fn from(value: u32) -> Self {
+impl From<ID> for Expr {
+    fn from(value: ID) -> Self {
         Expr::Identifier(value)
     }
 }
@@ -414,6 +439,34 @@ impl Number {
         }
     }
 
+    pub fn pow(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Number::Rational(left_nom, left_denom), Number::Rational(right_nom, right_denom)) => {
+                if right_denom == 1 && right_nom >= 0 {
+                    let nom = left_nom.pow(right_nom as u32);
+                    let denom = left_denom.pow(right_nom as u32);
+                    let gcf = Number::gcf(nom, denom);
+                    Number::Rational(nom / gcf, denom / gcf)
+                } else if right_denom == 1 {
+                    let nom = left_nom.pow((-right_nom) as u32);
+                    let denom = left_denom.pow((-right_nom) as u32);
+                    let gcf = Number::gcf(nom, denom);
+                    Number::Rational(denom / gcf, nom / gcf)
+                } else {
+                    // rationals
+                    let lhs: f64 = (left_nom as f64) / (left_denom as f64);
+                    let rhs: f64 = (right_nom as f64) / (right_denom as f64);
+                    Number::Irrational(lhs / rhs)
+                }
+            }
+            (lhs, rhs) => {
+                let lhs: f64 = lhs.into();
+                let rhs: f64 = rhs.into();
+                Number::Irrational(lhs / rhs)
+            }
+        }
+    }
+
     fn gcf(lhs: i64, rhs: i64) -> i64 {
         if rhs == 0 {
             lhs
@@ -432,9 +485,22 @@ impl Expr {
             Operator::Sub => Ok(self - rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
             Operator::Mul => Ok(self * rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
             Operator::Div => Ok(self / rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
-            Operator::Pow => Ok(self.pow(rhs.ok_or(SymErr::InvalidFunctionArgCount)?)),
+            Operator::Pow => Ok(self.pow_eval(rhs.ok_or(SymErr::InvalidFunctionArgCount)?)),
             _ => Err(SymErr::InvalidOP),
         }
+    }
+
+    pub fn pow_eval(self, exp: Self) -> Expr {
+        if let Expr::Number(l) = &self {
+            if let Expr::Number(r) = &exp {
+                return Expr::Number(l.clone().pow(r.clone()));
+            }
+        }
+
+        Expr::Operator(Tree {
+            value: Operator::Mul,
+            next: Some(vec![Box::new(self), Box::new(exp)]),
+        })
     }
 
     pub fn pow(self, exp: Self) -> Expr {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{expr, Expr, Engine};
+use crate::{Engine, Expr, ID, expr};
 
 pub struct Simplifier {
     rules: Vec<(Expr, Expr)>,
@@ -8,7 +8,7 @@ pub struct Simplifier {
 
 impl Simplifier {
 
-	fn compare(matcher: &Expr, target: &Expr, ids: &mut HashMap<u32, Expr>) -> bool {
+	fn compare(matcher: &Expr, target: &Expr, ids: &mut HashMap<ID, Expr>) -> bool {
 		if matcher.ty() != target.ty() {
 			return false;
 		}
@@ -48,11 +48,11 @@ impl Simplifier {
 
 				left_match && right_match
 			},
-			_ => panic!("No match for matcher and target"),
+			_ => false,
 		}
 	}
 
-	fn replace(expr: &mut Expr, ids: &mut HashMap<u32, Expr>) {
+	fn replace(expr: &mut Expr, ids: &mut HashMap<ID, Expr>) {
 		match expr {
 			Expr::Identifier(i) => {
 				if let Some(e) = ids.get(i) {
@@ -88,6 +88,9 @@ impl Simplifier {
 
 				found = true;
 			}
+
+			// simplify subexprs
+			
 		}
 
         (simplified, found)
@@ -112,156 +115,155 @@ impl Simplifier {
         let mut rules = Vec::<(Expr, Expr)>::new();
 
 		// ordering
-
         rules.push((
-			Expr::Identifier(0) + (Expr::Identifier(1) + Expr::Identifier(2)),
-			(Expr::Identifier(0) + Expr::Identifier(1)) + Expr::Identifier(2)
+			expr!(ID::new(0)) + (expr!(ID::new(1)) + expr!(ID::new(2))),
+			(expr!(ID::new(0)) + expr!(ID::new(1))) + expr!(ID::new(2))
 		));
 
 		// simple canceling out
 
         // x + 0 = x
         rules.push((
-			expr!(0.0) + Expr::Identifier(0),
-			Expr::Identifier(0)
+			expr!(0.0) + expr!(ID::new(0)),
+			expr!(ID::new(0))
 		));
 		// 0 + x = x
         rules.push((
-			Expr::Identifier(0) + expr!(0.0),
-			Expr::Identifier(0)
+			expr!(ID::new(0)) + expr!(0.0),
+			expr!(ID::new(0))
 		));
 		// x - x = 0
         rules.push((
-			Expr::Identifier(0) - Expr::Identifier(0),
+			expr!(ID::new(0)) - expr!(ID::new(0)),
 			expr!(0.0)
 		));
         // x * 0 = 0
         rules.push((
-			expr!(0.0) * Expr::Identifier(0),
+			expr!(0.0) * expr!(ID::new(0)),
 			expr!(0.0)
 		));
 		// 0 * x = 0
         rules.push((
-			Expr::Identifier(0) * expr!(0.0),
+			expr!(ID::new(0)) * expr!(0.0),
 			expr!(0.0)
 		));
         // x * 1 = x
         rules.push((
-			expr!(1.0) * Expr::Identifier(0),
-			Expr::Identifier(0)
+			expr!(1.0) * expr!(ID::new(0)),
+			expr!(ID::new(0))
 		));
 		// 1 * x = x
         rules.push((
-			Expr::Identifier(0) * expr!(1.0),
-			Expr::Identifier(0)
+			expr!(ID::new(0)) * expr!(1.0),
+			expr!(ID::new(0))
 		));
 
 
 
         // x * x = x^2
         rules.push((
-			Expr::Identifier(0) * Expr::Identifier(0),
-			Expr::Identifier(0).pow(expr!(2.0))
+			expr!(ID::new(0)) * expr!(ID::new(0)),
+			expr!(ID::new(0)).pow(expr!(2.0))
 		));
         // x + x = 2x
         rules.push((
-			Expr::Identifier(0) + Expr::Identifier(0),
-			expr!(2.0) * Expr::Identifier(0)
+			expr!(ID::new(0)) + expr!(ID::new(0)),
+			expr!(2.0) * expr!(ID::new(0))
 		));
         // x / x = 1
         rules.push((
-			Expr::Identifier(0) / Expr::Identifier(0),
+			expr!(ID::new(0)) / expr!(ID::new(0)),
 			expr!(1.0)
 		));
         // x * x^y = x^(y+1)
         rules.push((
-			Expr::Identifier(0) * Expr::Identifier(0).pow(Expr::Identifier(1)),
-			Expr::Identifier(0).pow(Expr::Identifier(1) + expr!(1.0))
+			expr!(ID::new(0)) * expr!(ID::new(0)).pow(expr!(ID::new(1))),
+			expr!(ID::new(0)).pow(expr!(ID::new(1)) + expr!(1.0))
 		));
         // x^y * x = x^(y+1)
         rules.push((
-			Expr::Identifier(0).pow(Expr::Identifier(1)) * Expr::Identifier(0),
-			Expr::Identifier(0).pow(Expr::Identifier(1) + expr!(1.0))
+			expr!(ID::new(0)).pow(expr!(ID::new(1))) * expr!(ID::new(0)),
+			expr!(ID::new(0)).pow(expr!(ID::new(1)) + expr!(1.0))
 		));
         // (x^y)^z = x^(y*z)
         rules.push((
-			Expr::Identifier(0).pow(Expr::Identifier(1)).pow(Expr::Identifier(2)),
-			Expr::Identifier(0).pow(Expr::Identifier(1) * Expr::Identifier(2))
+			expr!(ID::new(0)).pow(expr!(ID::new(1))).pow(expr!(ID::new(2))),
+			expr!(ID::new(0)).pow(expr!(ID::new(1)) * expr!(ID::new(2)))
 		));
         // x * x^-1 = 1
         rules.push((
-			Expr::Identifier(0) * Expr::Identifier(0).pow(expr!(-1.0)),
+			expr!(ID::new(0)) * expr!(ID::new(0)).pow(expr!(-1.0)),
 			expr!(1.0)
 		));
         // x / y = x * y^-1
         rules.push((
-			Expr::Identifier(0) / Expr::Identifier(1), 
-			Expr::Identifier(0) * Expr::Identifier(1).pow(expr!(-1.0))
+			expr!(ID::new(0)) / expr!(ID::new(1)), 
+			expr!(ID::new(0)) * expr!(ID::new(1)).pow(expr!(-1.0))
 		));
 
 		// x + x * y
 
         // x + x * y = x * (y + 1)
         rules.push((
-            Expr::Identifier(0) + Expr::Identifier(0) * Expr::Identifier(1),
-            Expr::Identifier(0) * (Expr::Identifier(1) + expr!(1.0)),
+            expr!(ID::new(0)) + expr!(ID::new(0)) * expr!(ID::new(1)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) + expr!(1.0)),
         ));
         // x + y * x = x * (y + 1)
         rules.push((
-            Expr::Identifier(0) + Expr::Identifier(1) * Expr::Identifier(0),
-            Expr::Identifier(0) * (Expr::Identifier(1) + expr!(1.0)),
+            expr!(ID::new(0)) + expr!(ID::new(1)) * expr!(ID::new(0)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) + expr!(1.0)),
         ));
         // x * y + x = x * (y + 1)
         rules.push((
-            Expr::Identifier(0) * Expr::Identifier(1) + Expr::Identifier(0),
-            Expr::Identifier(0) * (Expr::Identifier(1) + expr!(1.0)),
+            expr!(ID::new(0)) * expr!(ID::new(1)) + expr!(ID::new(0)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) + expr!(1.0)),
         ));
         // y * x + x = x * (y + 1)
         rules.push((
-            Expr::Identifier(1) * Expr::Identifier(0) + Expr::Identifier(0),
-            Expr::Identifier(0) * (Expr::Identifier(1) + expr!(1.0)),
+            expr!(ID::new(1)) * expr!(ID::new(0)) + expr!(ID::new(0)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) + expr!(1.0)),
         ));
 		// x - x * y
 		// x - x * y = x * (y - 1)
         rules.push((
-            Expr::Identifier(0) - Expr::Identifier(0) * Expr::Identifier(1),
-            Expr::Identifier(0) * (Expr::Identifier(1) - expr!(1.0)),
+            expr!(ID::new(0)) - expr!(ID::new(0)) * expr!(ID::new(1)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) - expr!(1.0)),
 		));
 		// x * y - x = x * (y - 1)
         rules.push((
-            Expr::Identifier(0) *  Expr::Identifier(1) - Expr::Identifier(0),
-            Expr::Identifier(0) * (Expr::Identifier(1) - expr!(1.0)),
+            expr!(ID::new(0)) *  expr!(ID::new(1)) - expr!(ID::new(0)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) - expr!(1.0)),
 		));
 		// x - y * x = x * (y - 1)
         rules.push((
-            Expr::Identifier(0) -  Expr::Identifier(1) * Expr::Identifier(0),
-            Expr::Identifier(0) * (Expr::Identifier(1) - expr!(1.0)),
+            expr!(ID::new(0)) -  expr!(ID::new(1)) * expr!(ID::new(0)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) - expr!(1.0)),
 		));
 		// y * x - x = x * (y - 1)
         rules.push((
-            Expr::Identifier(1) *  Expr::Identifier(0) - Expr::Identifier(0),
-            Expr::Identifier(0) * (Expr::Identifier(1) - expr!(1.0)),
+            expr!(ID::new(1)) *  expr!(ID::new(0)) - expr!(ID::new(0)),
+            expr!(ID::new(0)) * (expr!(ID::new(1)) - expr!(1.0)),
 		));
 
 		// some power rules
 
         // x^y * x^z = x^(y+z)
         rules.push((
-            Expr::Identifier(0).pow(Expr::Identifier(1)) * Expr::Identifier(0).pow(Expr::Identifier(2)),
-            Expr::Identifier(0).pow(Expr::Identifier(1) + Expr::Identifier(2)),
+            expr!(ID::new(0)).pow(expr!(ID::new(1))) * expr!(ID::new(0)).pow(expr!(ID::new(2))),
+            expr!(ID::new(0)).pow(expr!(ID::new(1)) + expr!(ID::new(2))),
         ));
 
 		// functions
 
         // sin(x)^2 + cos(x)^2 = 1
         rules.push((
-            Expr::function("sin", vec![Expr::Identifier(0)]).pow(expr!(2.0)) + Expr::function("cos", vec![Expr::Identifier(0)]).pow(expr!(2.0)),
+            Expr::function("sin", vec![expr!(ID::new(0))]).pow(expr!(2.0)) + Expr::function("cos", vec![expr!(ID::new(0))]).pow(expr!(2.0)),
             expr!(1.0),
         ));
         // log(e, x) = ln(x)
         rules.push((
-            Expr::function("log", vec![expr!("e"), Expr::Identifier(0)]),
-            Expr::function("ln", vec![Expr::Identifier(0)]),
+            Expr::function("log", vec![expr!("e"), expr!(ID::new(0))]),
+            Expr::function("ln", vec![expr!(ID::new(0))]),
         ));
 
         Simplifier { rules }

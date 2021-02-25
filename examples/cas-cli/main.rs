@@ -1,11 +1,11 @@
-use cas::{Engine, Expr};
+use cas::{Engine, Expr, SymErr};
 use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
 };
 use std::io::stdout;
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -16,14 +16,10 @@ fn main() -> std::io::Result<()> {
     };
     let stdout = stdout();
 
-    for arg in args.iter() {
-        if arg.len() == 0 {
-            continue;
-        }
-
-        let expr = Expr::parse(&engine, arg).unwrap();
+    let handle = |arg: &str| -> Result<(), SymErr> {
+        let expr = Expr::parse(&engine, arg.replace(|c: char| c == 27 as char, "").as_str())?;
         let simple = expr.simplify(&engine);
-        let eval = simple.eval(&engine);
+        let eval = simple.eval(&engine)?;
 
         execute!(
             &stdout,
@@ -65,6 +61,22 @@ fn main() -> std::io::Result<()> {
             ResetColor
         )
         .unwrap();
+
+        Ok(())
+    };
+
+    for arg in args.iter() {
+        handle(arg).unwrap_or_else(|err| println!("{:?}", err));
+    }
+
+    if args.len() == 0 {
+        let mut buf = String::new();
+        println!("Input:");
+        loop {
+            std::io::stdin().read_line(&mut buf).unwrap();
+            handle(buf.trim_end()).unwrap_or_else(|err| println!("{:?}", err));
+            buf.clear();
+        }
     }
 
     Ok(())
