@@ -73,8 +73,9 @@ impl Simplifier {
 		}
 	}
 
-    pub fn simplify(&self, engine: &Engine, expr: &Expr) -> Expr {
+	pub fn simplify_r(&self, engine: &Engine, expr: &Expr) -> (Expr, bool) {
 		let mut simplified = expr.clone();
+		let mut found = false;
 
 		// apply all rules
 		for (matcher, replace) in self.rules.iter() {
@@ -87,15 +88,40 @@ impl Simplifier {
 				if engine.debugging {
 					println!("Match found: {} for {} and replaced with {}", matcher, expr, simplified);
 				}
+
+				found = true;
 			}
 		}
 
-        simplified
+        (simplified, found)
+	}
+
+    pub fn simplify(&self, engine: &Engine, expr: &Expr) -> Expr {
+		let mut expr = expr.clone();
+		loop {
+			let res  = self.simplify_r(engine, &expr);
+			expr = res.0;
+
+			if !res.1 {
+				break;
+			}
+		}
+
+		expr
     }
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     pub fn new() -> Self {
         let mut rules = Vec::<(Expr, Expr)>::new();
+
+		// ordering
+
+        rules.push((
+			expr!(0) + (expr!(1) + expr!(2)),
+			(expr!(0) + expr!(1)) + expr!(2)
+		));
+
+		// simple canceling out
 
         // x + 0 = x
         rules.push((
@@ -132,6 +158,9 @@ impl Simplifier {
 			expr!(0) * expr!(1.0),
 			expr!(0)
 		));
+
+
+
         // x * x = x^2
         rules.push((
 			expr!(0) * expr!(0),
@@ -141,6 +170,11 @@ impl Simplifier {
         rules.push((
 			expr!(0) + expr!(0),
 			expr!(2.0) * expr!(0)
+		));
+        // x / x = 1
+        rules.push((
+			expr!(0) / expr!(0),
+			expr!(1.0)
 		));
         // x * x^y = x^(y+1)
         rules.push((
@@ -157,14 +191,9 @@ impl Simplifier {
 			expr!(0).pow(expr!(1)).pow(expr!(2)),
 			expr!(0).pow(expr!(1) * expr!(2))
 		));
-        // x + x = 2x
+        // x * x^-1 = 1
         rules.push((
-			expr!(0) + expr!(0),
-			expr!(2.0) * expr!(0)
-		));
-        // x / x = 1
-        rules.push((
-			expr!(0) / expr!(0),
+			expr!(0) * expr!(0).pow(expr!(-1.0)),
 			expr!(1.0)
 		));
         // x / y = x * y^-1
@@ -172,9 +201,17 @@ impl Simplifier {
 			expr!(0) / expr!(1), 
 			expr!(0) * expr!(1).pow(expr!(-1.0))
 		));
+
+		// x + x * y
+
         // x + x * y = x * (y + 1)
         rules.push((
             expr!(0) + expr!(0) * expr!(1),
+            expr!(0) * (expr!(1) + expr!(1.0)),
+        ));
+        // x + y * x = x * (y + 1)
+        rules.push((
+            expr!(0) + expr!(1) * expr!(0),
             expr!(0) * (expr!(1) + expr!(1.0)),
         ));
         // x * y + x = x * (y + 1)
@@ -182,6 +219,12 @@ impl Simplifier {
             expr!(0) * expr!(1) + expr!(0),
             expr!(0) * (expr!(1) + expr!(1.0)),
         ));
+        // y * x + x = x * (y + 1)
+        rules.push((
+            expr!(1) * expr!(0) + expr!(0),
+            expr!(0) * (expr!(1) + expr!(1.0)),
+        ));
+		// x - x * y
 		// x - x * y = x * (y - 1)
         rules.push((
             expr!(0) - expr!(0) * expr!(1),
@@ -192,10 +235,36 @@ impl Simplifier {
             expr!(0) * expr!(1) - expr!(0),
             expr!(0) * (expr!(1) - expr!(1.0)),
 		));
+		// x - y * x = x * (y - 1)
+        rules.push((
+            expr!(0) - expr!(1) * expr!(0),
+            expr!(0) * (expr!(1) - expr!(1.0)),
+		));
+		// y * x - x = x * (y - 1)
+        rules.push((
+            expr!(1) * expr!(0) - expr!(0),
+            expr!(0) * (expr!(1) - expr!(1.0)),
+		));
+
+		// some power rules
+
         // x^y * x^z = x^(y+z)
         rules.push((
             expr!(0).pow(expr!(1)) * expr!(0).pow(expr!(2)),
             expr!(0).pow(expr!(1) + expr!(2)),
+        ));
+
+		// functions
+
+        // sin(x)^2 + cos(x)^2 = 1
+        rules.push((
+            Expr::function("sin", vec![expr!(0)]).pow(expr!(2.0)) + Expr::function("cos", vec![expr!(0)]).pow(expr!(2.0)),
+            expr!(1.0),
+        ));
+        // log(e, x) = ln(x)
+        rules.push((
+            Expr::function("log", vec![expr!("e"), expr!(0)]),
+            Expr::function("ln", vec![expr!(0)]),
         ));
 
         Simplifier { rules }

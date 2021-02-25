@@ -73,39 +73,40 @@ impl Expr {
     pub fn print_latex(&self) -> String {
         parse::tree_to_latex(&self)
     }
-}
 
-impl Display for Expr {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "{}", self.print())
-        /* match &self {
-            Expr::Number(n) => write!(fmt, "{}", n),
-            Expr::Variable(s) => write!(fmt, "{}", s),
+    pub fn print_debug(&self) -> String {
+        match &self {
+            Expr::Number(n) => format!("{}", n),
+            Expr::Variable(s) => format!("{}", s),
             Expr::Function(f) => {
                 let mut l = String::new();
                 f.next.as_ref().unwrap().iter().for_each(|e| {
-                    l = format!("{}, {}", l, e);
+                    l = format!("{}, {}", l, e.print_debug());
                 });
 
-                write!(
-                    fmt,
+                format!(
                     "{}({})",
                     f.value,
                     if l.is_empty() { l.as_str() } else { &l[2..] },
                 )
             }
             Expr::Operator(o) => {
-                write!(
-                    fmt,
+                format!(
                     "{} -> [ {}, {} ]",
                     o.value.to(),
-                    o.next.as_ref().unwrap()[0],
-                    o.next.as_ref().unwrap()[1]
+                    o.next.as_ref().unwrap()[0].print_debug(),
+                    o.next.as_ref().unwrap()[1].print_debug()
                 )
             }
-            Expr::Negate(n) => write!(fmt, "-({})", n.next.as_ref().unwrap()[0]),
-            Expr::Identifier(i) => write!(fmt, "\\{}\\", i),
-        } */
+            Expr::Negate(n) => format!("-({})", n.next.as_ref().unwrap()[0]),
+            Expr::Identifier(i) => format!("\\{}\\", i),
+        }
+    }
+}
+
+impl Display for Expr {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(fmt, "{}", self.print())
     }
 }
 
@@ -118,6 +119,12 @@ impl From<f64> for Expr {
 impl From<String> for Expr {
     fn from(value: String) -> Self {
         Expr::Variable(value)
+    }
+}
+
+impl From<&str> for Expr {
+    fn from(value: &str) -> Self {
+        Expr::Variable(value.into())
     }
 }
 
@@ -192,10 +199,20 @@ impl ops::Div for Expr {
 }
 
 impl Expr {
-    fn pow(self, exp: Self) -> Expr {
+    pub fn pow(self, exp: Self) -> Expr {
         Expr::Operator(Tree {
             value: Operator::Pow,
             next: Some(vec![Box::new(self), Box::new(exp)]),
+        })
+    }
+
+    pub fn function<S>(name: S, exp: Vec<Self>) -> Expr
+    where
+        S: Into<String>,
+    {
+        Expr::Function(Tree {
+            value: name.into(),
+            next: Some(exp.into_iter().map(|e| Box::new(e)).collect::<Vec<_>>()),
         })
     }
 

@@ -218,6 +218,28 @@ pub fn postfix_to_tree(engine: &Engine, postfix: &Vec<Symbol>) -> Result<Expr, S
     Ok(mixed_stack.pop().unwrap())
 }
 
+enum Ordering {
+    Left,
+    Right,
+    Both,
+    Neither,
+}
+
+impl Ordering {
+    pub fn new(left: u8, oper: u8, right: u8) -> Self {
+        // println!("orders {} {} {}", left, oper, right);
+        if left >= oper && oper <= right {
+            Self::Neither
+        } else if left >= oper {
+            Self::Right
+        } else if left < oper && oper <= right {
+            Self::Left
+        } else {
+            Self::Both
+        }
+    }
+}
+
 fn tree_to_infix_recurse(expr: &Expr) -> (String, u8) {
     match &expr {
         Expr::Function(f) => (
@@ -244,12 +266,11 @@ fn tree_to_infix_recurse(expr: &Expr) -> (String, u8) {
             let b = tree_to_infix_recurse(&o.next.as_ref().unwrap()[1]);
             let c = o.value.precedence().unwrap();
 
-            if c <= a.1 && c <= b.1 {
-                (format!("{}{}{}", a.0, o.value.to(), b.0), c)
-            } else if a.1 >= b.1 {
-                (format!("{}{}({})", a.0, o.value.to(), b.0), c)
-            } else {
-                (format!("({}){}{}", a.0, o.value.to(), b.0), c)
+            match Ordering::new(a.1, c, b.1) {
+                Ordering::Neither => (format!("{}{}{}", a.0, o.value.to(), b.0), c),
+                Ordering::Right => (format!("{}{}({})", a.0, o.value.to(), b.0), c),
+                Ordering::Left => (format!("({}){}{}", a.0, o.value.to(), b.0), c),
+                Ordering::Both => (format!("({}){}({})", a.0, o.value.to(), b.0), c),
             }
         }
         Expr::Negate(n) => (
@@ -297,33 +318,30 @@ fn tree_to_latex_recurse(expr: &Expr) -> (String, u8) {
 
             match o.value {
                 Operator::Div => (format!("\\frac{{{}}}{{{}}}", a.0, b.0), c),
-                Operator::Mul => {
-                    if c <= a.1 && c <= b.1 {
-                        (format!("{}\\cdot{}", a.0, b.0), c)
-                    } else if a.1 >= b.1 {
-                        (format!("{}\\cdot\\left({}\\right)", a.0, b.0), c)
-                    } else {
-                        (format!("\\left({}\\right)\\cdot{}", a.0, b.0), c)
-                    }
-                }
-                Operator::Pow => {
-                    if c <= a.1 && c <= b.1 {
-                        (format!("{}^{}", a.0, b.0), c)
-                    } else if a.1 >= b.1 {
-                        (format!("{}^{{{}}}", a.0, b.0), c)
-                    } else {
-                        (format!("{{{}}}^{}", a.0, b.0), c)
-                    }
-                }
-                _ => {
-                    if c <= a.1 && c <= b.1 {
-                        (format!("{}{}{}", a.0, o.value.to(), b.0), c)
-                    } else if a.1 >= b.1 {
-                        (format!("{}{}\\left({}\\right)", a.0, o.value.to(), b.0), c)
-                    } else {
-                        (format!("\\left({}\\right){}{}", a.0, o.value.to(), b.0), c)
-                    }
-                }
+                Operator::Mul => match Ordering::new(a.1, c, b.1) {
+                    Ordering::Neither => (format!("{}\\cdot{}", a.0, b.0), c),
+                    Ordering::Right => (format!("{}\\cdot\\left({}\\left)", a.0, b.0), c),
+                    Ordering::Left => (format!("\\left({}\\left)\\cdot{}", a.0, b.0), c),
+                    Ordering::Both => (
+                        format!("\\left({}\\left)\\cdot\\left({}\\left)", a.0, b.0),
+                        c,
+                    ),
+                },
+                Operator::Pow => match Ordering::new(a.1, c, b.1) {
+                    Ordering::Neither => (format!("{}^{}", a.0, b.0), c),
+                    Ordering::Right => (format!("{}^{{{}}}", a.0, b.0), c),
+                    Ordering::Left => (format!("\\left({}\\left)^{}", a.0, b.0), c),
+                    Ordering::Both => (format!("\\left({}\\left)^{{{}}}", a.0, b.0), c),
+                },
+                _ => match Ordering::new(a.1, c, b.1) {
+                    Ordering::Neither => (format!("{}{}{}", a.0, o.value.to(), b.0), c),
+                    Ordering::Right => (format!("{}{}\\left({}\\left)", a.0, o.value.to(), b.0), c),
+                    Ordering::Left => (format!("\\left({}\\left){}{}", a.0, o.value.to(), b.0), c),
+                    Ordering::Both => (
+                        format!("\\left({}\\left){}\\left({}\\left)", a.0, o.value.to(), b.0),
+                        c,
+                    ),
+                },
             }
         }
         Expr::Negate(n) => (
