@@ -25,7 +25,7 @@ impl Display for Symbol {
             Symbol::Number(n) => write!(fmt, "{}", n),
             Symbol::Variable(s) => write!(fmt, "{}", s),
             Symbol::Function(s) => write!(fmt, "{}()", s),
-            Symbol::Operator(Negate) => write!(fmt, "{}", '-'),
+            Symbol::Operator(Operator::Neg) => write!(fmt, "{}", '-'),
             Symbol::Operator(o) => write!(fmt, "{}", o.to()),
         }
     }
