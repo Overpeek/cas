@@ -7,10 +7,10 @@ fn simple_eval() {
     let engine = Engine::new().with_functions().with_debugging();
 
     let l: Vec<(&str, Expr)> = vec![
-        ("-3(-2^2*2)/2-0", expr!(12.0)),
-        ("43*(4(2/5))", expr!(68.8)),
-        ("5*4+3", expr!(23.0)),
-        ("-2^6", expr!(-64.0)),
+        ("-3(-2^2*2)/2-0", expr!(12)),
+        ("43*(4(81/9))", expr!(1548)),
+        ("5*4+3", expr!(23)),
+        ("-2^6", expr!(-64)),
     ];
 
     for (i, e) in l.iter().enumerate() {
@@ -25,10 +25,10 @@ fn eval_after_simplify() {
     let engine = Engine::new().with_functions().with_debugging();
 
     let l: Vec<(&str, Expr)> = vec![
-        ("-3(-2^2*2)/2-0", expr!(12.0)),
-        ("43*(4(2/5))", expr!(68.8)),
-        ("5*4+3", expr!(23.0)),
-        ("-2^6", expr!(-64.0)),
+        ("-3(-2^2*2)/2-0", expr!(12)),
+        ("43*(4(81/9))", expr!(1548)),
+        ("5*4+3", expr!(23)),
+        ("-2^6", expr!(-64)),
     ];
 
     for (i, e) in l.iter().enumerate() {
@@ -82,9 +82,9 @@ fn sign_fuzz() {
         assert_eq!(
             answer,
             if count % 2 == 0 {
-                expr!(2.0)
+                expr!(2)
             } else {
-                expr!(0.0)
+                expr!(0)
             }
         );
     }
