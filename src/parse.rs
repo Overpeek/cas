@@ -1,3 +1,5 @@
+use regex::{Captures, Regex};
+
 use crate::Number;
 
 use super::{Engine, Expr, Operator, SymErr, Symbol, Tree};
@@ -22,8 +24,15 @@ fn split_keep<'a>(str: &'a str) -> Vec<&'a str> {
 }
 
 pub fn parse_infix(engine: &Engine, infix_string: &str) -> Result<Vec<Symbol>, SymErr> {
-    let py_fixed_str = infix_string.replace("**", "^").replace(' ', "");
-    let infix_split = split_keep(py_fixed_str.as_str());
+    let missing_multiply = Regex::new(r"\d[A-Za-z(]").unwrap();
+    let missing_multiply_result = missing_multiply.replace_all(infix_string, |caps: &Captures| {
+        let mut chars = (&caps[0]).chars();
+        format!("{}*{}", chars.next().unwrap(), chars.next().unwrap())
+    });
+    let python_power = Regex::new(r"\*\*").unwrap();
+    let python_power_result = python_power.replace_all(&missing_multiply_result, "^");
+
+    let infix_split = split_keep(&python_power_result);
 
     if engine.debugging {
         println!("To infix: {}", infix_string);

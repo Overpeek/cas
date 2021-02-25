@@ -123,8 +123,8 @@ impl Expr {
         engine.simplifier.simplify(engine, &self)
     }
 
-    pub fn eval(&self) -> Self {
-        eval_tree(&self)
+    pub fn eval(&self, engine: &Engine) -> Self {
+        eval_tree(engine, &self)
     }
 
     pub fn print(&self) -> String {
@@ -221,6 +221,12 @@ impl ops::Add for Expr {
     type Output = Expr;
 
     fn add(self, rhs: Self) -> Expr {
+        if let Expr::Number(l) = &self {
+            if let Expr::Number(r) = &rhs {
+                return Expr::Number(l.clone() + r.clone());
+            }
+        }
+
         Expr::Operator(Tree {
             value: Operator::Add,
             next: Some(vec![Box::new(self), Box::new(rhs)]),
@@ -232,6 +238,12 @@ impl ops::Sub for Expr {
     type Output = Expr;
 
     fn sub(self, rhs: Self) -> Expr {
+        if let Expr::Number(l) = &self {
+            if let Expr::Number(r) = &rhs {
+                return Expr::Number(l.clone() - r.clone());
+            }
+        }
+
         Expr::Operator(Tree {
             value: Operator::Sub,
             next: Some(vec![Box::new(self), Box::new(rhs)]),
@@ -243,6 +255,10 @@ impl ops::Neg for Expr {
     type Output = Expr;
 
     fn neg(self) -> Expr {
+        if let Expr::Number(l) = &self {
+            return Expr::Number(-l.clone());
+        }
+
         Expr::Operator(Tree {
             value: Operator::Neg,
             next: Some(vec![Box::new(self)]),
@@ -254,6 +270,12 @@ impl ops::Mul for Expr {
     type Output = Expr;
 
     fn mul(self, rhs: Self) -> Expr {
+        if let Expr::Number(l) = &self {
+            if let Expr::Number(r) = &rhs {
+                return Expr::Number(l.clone() * r.clone());
+            }
+        }
+
         Expr::Operator(Tree {
             value: Operator::Mul,
             next: Some(vec![Box::new(self), Box::new(rhs)]),
@@ -265,6 +287,12 @@ impl ops::Div for Expr {
     type Output = Expr;
 
     fn div(self, rhs: Self) -> Expr {
+        if let Expr::Number(l) = &self {
+            if let Expr::Number(r) = &rhs {
+                return Expr::Number(l.clone() / r.clone());
+            }
+        }
+
         Expr::Operator(Tree {
             value: Operator::Div,
             next: Some(vec![Box::new(self), Box::new(rhs)]),
@@ -396,6 +424,19 @@ impl Number {
 }
 
 impl Expr {
+    pub fn operate(self, oper: Operator, rhs: Option<Self>) -> Result<Self, SymErr> {
+        match oper {
+            Operator::Pos => Ok(self),
+            Operator::Neg => Ok(-self),
+            Operator::Add => Ok(self + rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
+            Operator::Sub => Ok(self - rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
+            Operator::Mul => Ok(self * rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
+            Operator::Div => Ok(self / rhs.ok_or(SymErr::InvalidFunctionArgCount)?),
+            Operator::Pow => Ok(self.pow(rhs.ok_or(SymErr::InvalidFunctionArgCount)?)),
+            _ => Err(SymErr::InvalidOP),
+        }
+    }
+
     pub fn pow(self, exp: Self) -> Expr {
         Expr::Operator(Tree {
             value: Operator::Pow,

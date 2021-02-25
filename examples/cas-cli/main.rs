@@ -23,7 +23,7 @@ fn main() -> std::io::Result<()> {
 
         let expr = Expr::parse(&engine, arg).unwrap();
         let simple = expr.simplify(&engine);
-        let eval = simple.eval();
+        let eval = simple.eval(&engine);
 
         execute!(
             &stdout,

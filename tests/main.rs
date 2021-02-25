@@ -14,7 +14,7 @@ fn simple_eval() {
     ];
 
     for (i, e) in l.iter().enumerate() {
-        let answer = Expr::parse(&engine, e.0).unwrap().eval();
+        let answer = Expr::parse(&engine, e.0).unwrap().eval(&engine);
 
         assert_eq!(answer, e.1, "e={}, i={}", e.0, i);
     }
@@ -32,7 +32,10 @@ fn eval_after_simplify() {
     ];
 
     for (i, e) in l.iter().enumerate() {
-        let answer = Expr::parse(&engine, e.0).unwrap().simplify(&engine).eval();
+        let answer = Expr::parse(&engine, e.0)
+            .unwrap()
+            .simplify(&engine)
+            .eval(&engine);
 
         assert_eq!(answer, e.1, "e={}, i={}", e.0, i);
     }
@@ -70,7 +73,7 @@ fn sign_fuzz() {
         }
         buf.push('1');
 
-        let answer = Expr::parse(&engine, buf.as_str()).unwrap().eval();
+        let answer = Expr::parse(&engine, buf.as_str()).unwrap().eval(&engine);
 
         assert_eq!(
             answer,

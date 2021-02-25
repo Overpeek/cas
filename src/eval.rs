@@ -1,45 +1,32 @@
+use crate::Engine;
+
 use super::{Expr, Operator};
 
-pub fn eval_tree(tree: &Expr) -> Expr {
+pub fn eval_tree(engine: &Engine, tree: &Expr) -> Expr {
     match &tree {
         Expr::Operator(o) => match o.value {
-            Operator::Pos => {
-                let value = eval_tree(o.next.as_ref().unwrap()[0].as_ref());
-                match value {
-                    Expr::Number(n) => Expr::from(n),
-                    _ => tree.clone(),
+            Operator::Pos | Operator::Neg => {
+                let value = eval_tree(engine, o.next.as_ref().unwrap()[0].as_ref());
+
+                let string = format!("Evaluating, {}({})", o.value.to(), value);
+                let result = value.operate(o.value, None).unwrap();
+                if engine.debugging {
+                    println!("{} = {}", string, result);
                 }
-            }
-            Operator::Neg => {
-                let value = eval_tree(o.next.as_ref().unwrap()[0].as_ref());
-                match value {
-                    Expr::Number(n) => Expr::from(-n),
-                    _ => tree.clone(),
-                }
+                result
             }
             _ => {
-                let left = eval_tree(o.next.as_ref().unwrap()[0].as_ref());
-                let right = eval_tree(o.next.as_ref().unwrap()[1].as_ref());
+                let left = eval_tree(engine, o.next.as_ref().unwrap()[0].as_ref());
+                let right = eval_tree(engine, o.next.as_ref().unwrap()[1].as_ref());
 
-                match (&o.value, left, right) {
-                    (Operator::Add, Expr::Number(number_left), Expr::Number(number_right)) => {
-                        Expr::from(number_left + number_right)
-                    }
-                    (Operator::Sub, Expr::Number(number_left), Expr::Number(number_right)) => {
-                        Expr::from(number_left - number_right)
-                    }
-                    (Operator::Mul, Expr::Number(number_left), Expr::Number(number_right)) => {
-                        Expr::from(number_left * number_right)
-                    }
-                    (Operator::Div, Expr::Number(number_left), Expr::Number(number_right)) => {
-                        Expr::from(number_left / number_right)
-                    }
-                    (Operator::Pow, Expr::Number(_number_left), Expr::Number(_number_right)) => {
-                        // Expr::from()
-                        todo!()
-                    }
-                    _ => tree.clone(),
+                let string = format!("Evaluating, {}{}{}", left, o.value.to(), right);
+                let result = left.operate(o.value, Some(right)).unwrap();
+
+                if engine.debugging {
+                    println!("{} = {}", string, result);
                 }
+
+                result
             }
         },
         _ => tree.clone(),
