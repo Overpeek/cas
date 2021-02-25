@@ -343,11 +343,11 @@ fn tree_to_latex_recurse(expr: &Expr) -> (String, u8) {
                 match o.value {
                     Operator::Div => (format!("\\frac{{{}}}{{{}}}", a.0, b.0), c),
                     Operator::Mul => match Ordering::new(a.1, c, b.1) {
-                        Ordering::Neither => (format!("{}\\cdot{}", a.0, b.0), c),
-                        Ordering::Right => (format!("{}\\cdot\\left({}\\left)", a.0, b.0), c),
-                        Ordering::Left => (format!("\\left({}\\left)\\cdot{}", a.0, b.0), c),
+                        Ordering::Neither => (format!("{}\\cdot {}", a.0, b.0), c),
+                        Ordering::Right => (format!("{}\\cdot \\left({}\\left)", a.0, b.0), c),
+                        Ordering::Left => (format!("\\left({}\\left)\\cdot {}", a.0, b.0), c),
                         Ordering::Both => (
-                            format!("\\left({}\\left)\\cdot\\left({}\\left)", a.0, b.0),
+                            format!("\\left({}\\left)\\cdot \\left({}\\left)", a.0, b.0),
                             c,
                         ),
                     },
