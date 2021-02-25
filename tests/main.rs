@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cas::{self, expr, Engine, Expr};
+use cas::{self, expr, Engine, Expr, Number, SymErr};
 
 #[test]
 fn simple_eval() {
@@ -81,4 +81,63 @@ fn sign_fuzz() {
             }
         );
     }
+}
+
+#[test]
+fn number_test() {
+    // irrationals
+    assert_eq!(
+        Number::Irrational(1.0) + Number::Irrational(1.0),
+        Number::Irrational(2.0)
+    );
+    assert_eq!(
+        Number::Irrational(1.0) - Number::Irrational(1.0),
+        Number::Irrational(0.0)
+    );
+    assert_eq!(
+        Number::Irrational(1.0) * Number::Irrational(1.0),
+        Number::Irrational(1.0)
+    );
+    assert_eq!(
+        Number::Irrational(1.0) / Number::Irrational(1.0),
+        Number::Irrational(1.0)
+    );
+    // mix
+    assert_eq!(
+        Number::Rational(1, 1) + Number::Irrational(1.0),
+        Number::Irrational(2.0)
+    );
+    assert_eq!(
+        Number::Rational(1, 1) - Number::Irrational(1.0),
+        Number::Irrational(0.0)
+    );
+    assert_eq!(
+        Number::Rational(1, 1) * Number::Irrational(1.0),
+        Number::Irrational(1.0)
+    );
+    assert_eq!(
+        Number::Rational(1, 1) / Number::Irrational(1.0),
+        Number::Irrational(1.0)
+    );
+    // ratonals
+    assert_eq!(
+        Number::Rational(1, 2) + Number::Rational(1, 2),
+        Number::Rational(1, 1)
+    );
+    assert_eq!(
+        Number::Rational(8, 4) - Number::Rational(4, 2),
+        Number::Rational(0, 1)
+    );
+    assert_eq!(
+        Number::Rational(4, 1) * Number::Rational(1, 2),
+        Number::Rational(2, 1)
+    );
+    assert_eq!(
+        Number::Rational(4, 1) / Number::Rational(2, 1),
+        Number::Rational(2, 1)
+    );
+    // parse
+    assert_eq!(Number::parse("5.0").unwrap(), Number::Irrational(5.0));
+    assert_eq!(Number::parse("50").unwrap(), Number::Rational(50, 1));
+    assert_eq!(Number::parse("5.5.0").unwrap_err(), SymErr::NotANumber);
 }

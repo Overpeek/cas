@@ -34,8 +34,9 @@ pub fn eval_tree(tree: &Expr) -> Expr {
                     (Operator::Div, Expr::Number(number_left), Expr::Number(number_right)) => {
                         Expr::from(number_left / number_right)
                     }
-                    (Operator::Pow, Expr::Number(number_left), Expr::Number(number_right)) => {
-                        Expr::from(number_left.powf(number_right))
+                    (Operator::Pow, Expr::Number(_number_left), Expr::Number(_number_right)) => {
+                        // Expr::from()
+                        todo!()
                     }
                     _ => tree.clone(),
                 }

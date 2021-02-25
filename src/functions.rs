@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use rand::random;
+/* use rand::random; */
 
-use super::{Stack, SymErr, Symbol};
+use super::{Stack, SymErr /* Symbol */};
 
 type Function = fn(&mut Stack) -> Result<(), SymErr>;
 type FunctionMap<'a> = HashMap<&'a str, (u8, Function)>;
 
-pub fn pop_n(input: &mut Stack, n: isize) -> Result<Vec<f64>, SymErr> {
+/* pub fn pop_n(input: &mut Stack, n: isize) -> Result<Vec<f64>, SymErr> {
     let mut output = Vec::new();
 
     for _ in 0..n {
@@ -159,10 +159,10 @@ pub fn atan2(input: &mut Stack) -> Result<(), SymErr> {
 pub fn rand(input: &mut Stack) -> Result<(), SymErr> {
     input.push(Symbol::Number(random()));
     Ok(())
-}
+} */
 
-pub fn all(map: &mut FunctionMap) {
-    map.insert("ln", (1, ln));
+pub fn all(_map: &mut FunctionMap) {
+    /* map.insert("ln", (1, ln));
     map.insert("log", (2, log));
     map.insert("sqrt", (1, sqrt));
     map.insert("root", (2, root));
@@ -173,5 +173,5 @@ pub fn all(map: &mut FunctionMap) {
     map.insert("acos", (1, acos));
     map.insert("atan", (1, atan));
     map.insert("atan2", (2, atan2));
-    map.insert("rand", (0, rand));
+    map.insert("rand", (0, rand)); */
 }

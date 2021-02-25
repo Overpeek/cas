@@ -1,3 +1,5 @@
+use crate::Number;
+
 use super::{Engine, Expr, Operator, SymErr, Symbol, Tree};
 
 fn split_keep<'a>(str: &'a str) -> Vec<&'a str> {
@@ -31,7 +33,7 @@ pub fn parse_infix(engine: &Engine, infix_string: &str) -> Result<Vec<Symbol>, S
         .iter()
         .enumerate()
         .map(|(i, &to_parse)| {
-            if let Ok(number) = to_parse.parse() {
+            if let Ok(number) = Number::parse(to_parse) {
                 Ok(Symbol::Number(number))
             } else if let Ok(oper) = Operator::from(to_parse.chars().next().unwrap()) {
                 let is_sign = i == 0

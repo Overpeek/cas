@@ -1,4 +1,9 @@
-use std::{borrow::Borrow, collections::HashMap, fmt::Display, ops};
+use std::{
+    borrow::Borrow,
+    collections::HashMap,
+    fmt::Display,
+    ops::{self, Rem},
+};
 
 use eval::eval_tree;
 use simplifier::Simplifier;
@@ -11,12 +16,87 @@ pub mod simplifier;
 
 type Stack = Vec<Symbol>;
 
+pub struct Engine<'a> {
+    functions: HashMap<&'a str, (u8, fn(&mut Stack) -> Result<(), SymErr>)>,
+    simplifier: simplifier::Simplifier,
+    debugging: bool,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SymErr {
+    StackEmpty,
+    NotANumber,
+    InvalidOP,
+    InvalidSign,
+    UnknownFunction,
+    InvalidFunctionArgCount,
+    ParenthesesMismatch,
+    StackNotLengthOne,
+    Inconvertible,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Operator {
+    Pos, // +
+    Neg, // -
+    Add, // +
+    Sub, // -
+    Mul, // *
+    Div, // /
+    Pow, // ^ (TODO: or **)
+    LPa, // (
+    RPa, // )
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Associativity {
+    Left,
+    Right,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Number {
+    Rational(i64, i64),
+    Irrational(f64),
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Symbol {
-    Number(f64),
+    Number(Number),
     Variable(String),
     Function(String),
     Operator(Operator),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Tree<T, U> {
+    value: T,
+    next: Option<Vec<Box<U>>>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum Expr {
+    Number(Number),
+    Variable(String),
+    Function(Tree<String, Expr>),
+    Operator(Tree<Operator, Expr>),
+
+    Identifier(u32),
+}
+
+impl Display for Number {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Number::Irrational(n) => write!(fmt, "{}", n),
+            Number::Rational(nom, denom) => {
+                if *denom == 1 {
+                    write!(fmt, "{}", nom)
+                } else {
+                    write!(fmt, "({}/{})", nom, denom)
+                }
+            }
+        }
+    }
 }
 
 impl Display for Symbol {
@@ -29,22 +109,6 @@ impl Display for Symbol {
             Symbol::Operator(o) => write!(fmt, "{}", o.to()),
         }
     }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct Tree<T, U> {
-    value: T,
-    next: Option<Vec<Box<U>>>,
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum Expr {
-    Number(f64),
-    Variable(String),
-    Function(Tree<String, Expr>),
-    Operator(Tree<Operator, Expr>),
-
-    Identifier(u32),
 }
 
 impl Expr {
@@ -108,8 +172,20 @@ impl Display for Expr {
     }
 }
 
+impl From<i64> for Expr {
+    fn from(value: i64) -> Self {
+        Expr::Number(Number::Rational(value, 1))
+    }
+}
+
 impl From<f64> for Expr {
     fn from(value: f64) -> Self {
+        Expr::Number(Number::Irrational(value))
+    }
+}
+
+impl From<Number> for Expr {
+    fn from(value: Number) -> Self {
         Expr::Number(value)
     }
 }
@@ -196,6 +272,129 @@ impl ops::Div for Expr {
     }
 }
 
+impl From<Number> for f64 {
+    fn from(n: Number) -> Self {
+        match n {
+            Number::Rational(nom, denom) => nom as f64 / denom as f64,
+            Number::Irrational(n) => n,
+        }
+    }
+}
+
+impl ops::Add for Number {
+    type Output = Number;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Number::Rational(left_nom, left_denom), Number::Rational(right_nom, right_denom)) => {
+                let nom = left_nom * right_denom + right_nom * left_denom;
+                let denom = left_denom * right_denom;
+                let gcf = Number::gcf(nom, denom);
+                Number::Rational(nom / gcf, denom / gcf)
+            }
+            (lhs, rhs) => {
+                let lhs: f64 = lhs.into();
+                let rhs: f64 = rhs.into();
+                Number::Irrational(lhs + rhs)
+            }
+        }
+    }
+}
+
+impl ops::Sub for Number {
+    type Output = Number;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Number::Rational(left_nom, left_denom), Number::Rational(right_nom, right_denom)) => {
+                let nom = left_nom * right_denom - right_nom * left_denom;
+                let denom = left_denom * right_denom;
+                let gcf = Number::gcf(nom, denom);
+                Number::Rational(nom / gcf, denom / gcf)
+            }
+            (lhs, rhs) => {
+                let lhs: f64 = lhs.into();
+                let rhs: f64 = rhs.into();
+                Number::Irrational(lhs - rhs)
+            }
+        }
+    }
+}
+
+impl ops::Neg for Number {
+    type Output = Number;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            Number::Rational(nom, denom) => Number::Rational(-nom, denom),
+            Number::Irrational(f) => Number::Irrational(-f),
+        }
+    }
+}
+
+impl ops::Mul for Number {
+    type Output = Number;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Number::Rational(left_nom, left_denom), Number::Rational(right_nom, right_denom)) => {
+                let nom = left_nom * right_nom;
+                let denom = left_denom * right_denom;
+                let gcf = Number::gcf(nom, denom);
+                Number::Rational(nom / gcf, denom / gcf)
+            }
+            (lhs, rhs) => {
+                let lhs: f64 = lhs.into();
+                let rhs: f64 = rhs.into();
+                Number::Irrational(lhs * rhs)
+            }
+        }
+    }
+}
+
+impl ops::Div for Number {
+    type Output = Number;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Number::Rational(left_nom, left_denom), Number::Rational(right_nom, right_denom)) => {
+                let nom = left_nom * right_denom;
+                let denom = left_denom * right_nom;
+                let gcf = Number::gcf(nom, denom);
+                Number::Rational(nom / gcf, denom / gcf)
+            }
+            (lhs, rhs) => {
+                let lhs: f64 = lhs.into();
+                let rhs: f64 = rhs.into();
+                Number::Irrational(lhs / rhs)
+            }
+        }
+    }
+}
+
+impl Number {
+    pub fn parse(from: &str) -> Result<Self, SymErr> {
+        if from.contains('.') {
+            Ok(Number::Irrational(
+                from.parse::<f64>().or(Err(SymErr::NotANumber))?,
+            ))
+        } else {
+            Ok(Number::Rational(
+                from.parse::<i64>().or(Err(SymErr::NotANumber))?,
+                1,
+            ))
+        }
+    }
+
+    fn gcf(lhs: i64, rhs: i64) -> i64 {
+        if rhs == 0 {
+            lhs
+        } else {
+            Number::gcf(rhs, lhs.rem(rhs))
+        }
+    }
+}
+
 impl Expr {
     pub fn pow(self, exp: Self) -> Expr {
         Expr::Operator(Tree {
@@ -223,38 +422,6 @@ impl Expr {
             Expr::Variable(_) => 4,
         }
     }
-}
-
-#[derive(Debug)]
-pub enum SymErr {
-    StackEmpty,
-    NotANumber,
-    InvalidOP,
-    InvalidSign,
-    UnknownFunction,
-    InvalidFunctionArgCount,
-    ParenthesesMismatch,
-    StackNotLengthOne,
-    Inconvertible,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Operator {
-    Pos, // +
-    Neg, // -
-    Add, // +
-    Sub, // -
-    Mul, // *
-    Div, // /
-    Pow, // ^ (TODO: or **)
-    LPa, // (
-    RPa, // )
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Associativity {
-    Left,
-    Right,
 }
 
 impl Operator {
@@ -313,12 +480,6 @@ impl Operator {
     pub fn is_operator(c: char) -> bool {
         c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '(' || c == ')'
     }
-}
-
-pub struct Engine<'a> {
-    functions: HashMap<&'a str, (u8, fn(&mut Stack) -> Result<(), SymErr>)>,
-    simplifier: simplifier::Simplifier,
-    debugging: bool,
 }
 
 impl<'a> Engine<'a> {
